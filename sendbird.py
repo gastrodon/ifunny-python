@@ -3,7 +3,6 @@ import websocket, json, time, threading, requests
 class Socket:
     def __init__(self, client):
         self.client = client
-        self.handler = Handler(client)
         self.socket_url = "wss://ws-us-1.sendbird.com"
         self.sendbird_url = "https://api-p.sendbird.com"
         self.route = "AFB3A55B-8275-4C1E-AEA8-309842798187"
@@ -24,7 +23,7 @@ class Socket:
         print(f"The server sent back {data}")
 
     def on_message(self, data):
-        return self.handler.resolve(data)
+        return self.client.handler.resolve(data)
 
     def start(self):
         route = requests.get(f"{self.sendbird_url}/routing/{self.route}").json()
@@ -44,30 +43,3 @@ class Socket:
 
     def send(self, data):
         return self.socket.send(data)
-
-class Handler:
-    def __init__(self, client):
-        self.client = client
-        self.matches = {
-            "PING": self.ping
-        }
-
-    def resolve(self, data):
-        return self.matches.get(data[:4], self.default)(data[:4], json.loads(data[4:]))
-
-    def default(self, key, data):
-        print(f"Don't know about {key}")
-        return
-
-    def ping(self, key, data):
-        id = data["id"]
-        timestamp = int(time.time() * 1000)
-        print("will PONG")
-
-        data = json.dumps({
-            "id": id,
-            "ts": timestamp,
-            "sts": timestamp
-        })
-
-        return client.socket.send(f"PONG{data}")

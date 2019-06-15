@@ -1,19 +1,23 @@
 import praw, requests, json, os, base64, base64, hashlib
+
 from sendbird import Socket
 from notifications import resolve_notification
+from handler import Handler
+
 from os import urandom
 from random import randrange
 from time import sleep
 from hashlib import sha1
 from base64 import b64encode
 
-class Poster:
-    def __init__(self):
+class Client:
+    def __init__(self, handler = Handler, socket = Socket):
         self.api = "https://api.ifunny.mobi/v4"
         self.id = None
         self.token = None
         self.authenticated = False
-        self.socket = Socket(self)
+        self.socket = socket(self)
+        self.handler = handler(self)
 
         self.__login_token = self.__generate_login_token()
 
@@ -39,10 +43,11 @@ class Poster:
 
     def login(self, email, password, force = False):
         if not force:
-            if self.__config.get(f"{email}_bearer"):
-                self.token = self.__config[f"{email}_bearer"]
+            if self.__config.get(f"{email}_token"):
+                self.token = self.__config[f"{email}_token"]
                 self.authenticated = True
                 self.update_profile()
+                self.socket.start()
                 return
 
         headers = {
@@ -72,6 +77,7 @@ class Poster:
             json.dump(self.__config, stream)
 
         self.update_profile()
+        self.socket.start()
 
     @property
     def headers(self):
