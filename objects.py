@@ -1,4 +1,4 @@
-import json
+import json, time, random
 
 class Peer:
     def __init__(self, data, client):
@@ -58,4 +58,24 @@ class ChatChannel:
         self.client = client
         self.__data = data
 
-        self.channel_url = 
+        self.sendbird_url = data["channel_url"]
+        self.id = data["channel_id"]
+        self.type = data["channel_type"]
+
+    def send_text_message(self, message):
+        timestamp = int(time.time() * 1000)
+        payload = {
+            "msg_id": int(random.random() * 1000000000),
+            "ts" : timestamp,
+            "sts": timestamp,
+
+            "channel_type": self.type,
+            "channel_id" : self.id,
+            "req_id"
+
+            "is_super": False,
+            "scrap_id": "",
+            "mention_type": "users",
+            "is_op_msg": False,
+            "translations" :{},
+        }

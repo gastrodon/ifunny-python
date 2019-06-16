@@ -1,4 +1,7 @@
 import praw, requests, json, os, base64, base64, hashlib
+from time import time
+from random import random
+from threading import Lock
 
 from sendbird import Socket
 from notifications import resolve_notification
@@ -20,6 +23,8 @@ class Client:
         self.handler = handler(self)
 
         self.__login_token = self.__generate_login_token()
+        self.__sendbird_req_id = int((time() / 100000) + (random() * 1000000000))
+        self.__sendbird_req_lock = Lock()
 
         self.recently_posted = []
         self._last_read_hash = None
@@ -209,3 +214,17 @@ class Client:
         response = requests.post(f"{self.api}/content", headers = headers, data = data, files = files)
 
         return response.status_code
+
+    @property
+    def sendbird_req_id(self):
+        self.__sendbird_req_lock.aquire()
+        self.__sendbird_req_id += 1
+        self.__sendbird_req_lock.release()
+        return self.__sendbird_req_id
+
+    @sendbird_req_id.setter()
+    def set_sendbird_req_id(self, value):
+        self.__sendbird_req_lock.aquire()
+        self.__sendbird_req_id = int(value)
+        self.__sendbird_req_lock.release()
+        return self.__sendbird_req_id
