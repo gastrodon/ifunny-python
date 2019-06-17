@@ -1,4 +1,4 @@
-import praw, requests, json, os, base64, base64, hashlib
+import requests, json, os, base64, base64, hashlib
 from time import time, sleep
 from random import random
 from threading import Lock
@@ -11,8 +11,46 @@ from ifunny.notifications import resolve_notification
 from ifunny.handler import Handler
 
 
+class Commands:
+    def __init__(self, client, prefix):
+        self.client = client
+        self.table = {
+            "help": self._help
+        }
+        self.__prefix = prefix
+
+    def _help(self, ctx, args):
+        ctx.send(f"These commands are available:\n{', '.join(self.table.keys())}")
+
+    def _default(self, ctx, args):
+        return
+
+    def get_prefix(self, ctx):
+        if isinstance(self.__prefix, str):
+            return self.__prefix
+
+        return self.__prefix(ctx)
+
+
+    def add(self, name = None):
+        def _inside(method):
+            c_name = name if name else method.__name__
+            self.table[c_name] = method
+
+        return _inside
+
+    def resolve_execute(self, ctx):
+        prefix = ctx.prefix
+        first = ctx.message.split(" ")[0]
+        args = ctx.message.split(" ")[1:]
+        if not first.startswith(prefix):
+            return None
+
+        exec = self.table.get(first[len(prefix):], self._default)
+        return exec(ctx, args)
+
 class Client:
-    def __init__(self, handler = Handler, socket = Socket, trace = False, prefix = "-"):
+    def __init__(self, commands = Commands, handler = Handler, socket = Socket, trace = False, prefix = None):
         self.api = "https://api.ifunny.mobi/v4"
         self.id = None
         self.token = None
@@ -21,7 +59,7 @@ class Client:
         self.socket = socket(self)
         self.trace = trace
         self.handler = handler(self)
-        self.commands = Commands(self, prefix)
+        self.commands = commands(self, prefix)
 
         self.__login_token = self.__generate_login_token()
         self.__sendbird_req_id = int(time() * 1000 + random() * 1000000)
@@ -123,14 +161,17 @@ class Client:
         }
 
     def __generate_login_token(self, path = "config.json"):
-        with open(path, "r") as stream:
-            config = json.load(stream)
+        try:
+            with open(path, "r") as stream:
+                config = json.load(stream)
+        except(FileNotFoundError, json.JSONDecodeError):
+            config = {}
 
         if config.get("login_token"):
             return config["login_token"]
 
-        client_id = config["client_id"]
-        client_secret = config["client_secret"]
+        client_id = "MsOIJ39Q28"
+        client_secret = "PTDc3H8a)Vi=UYap"
 
         hex_string = urandom(32).hex().upper()
         hex_id = f"{hex_string}_{client_id}"
@@ -194,6 +235,23 @@ class Client:
 
                         return unread[:count]
 
+    def set_chat_visibility(self, param):
+        valid = ["public", "private", "subscribers"]
+
+        if param not in valid:
+            raise Exception(f"params must be of type {', '.join(valid)}, not {param}")
+
+        headers = self.headers
+
+        params = {
+            "is_private": 0,
+            "messaging_privacy_status": param
+        }
+
+        response = requests.put(f"{self.api}/account", params = params, headers = headers)
+
+        return response
+
     # Posting
 
     def post_image(self, image_data, tags = []):
@@ -233,41 +291,3 @@ class Client:
         self.__sendbird_req_id = value
         self.__sendbird_req_lock.release()
         return self.__sendbird_req_id
-
-class Commands:
-    def __init__(self, client, prefix):
-        self.client = client
-        self.table = {
-            "help": self._help
-        }
-        self.__prefix = prefix
-
-    def _help(self, ctx, args):
-        ctx.send(f"These commands are available:\n{', '.join(self.table.keys())}")
-
-    def _default(self, ctx, args):
-        return
-
-    def get_prefix(self, ctx):
-        if isinstance(self.__prefix, str):
-            return self.__prefix
-
-        return self.__prefix(ctx)
-
-
-    def add(self, name = None):
-        def _inside(method):
-            c_name = name if name else method.__name__
-            self.table[c_name] = method
-
-        return _inside
-
-    def resolve_execute(self, ctx):
-        prefix = ctx.prefix
-        first = ctx.message.split(" ")[0]
-        args = ctx.message.split(" ")[1:]
-        if not first.startswith(prefix):
-            return None
-
-        exec = self.table.get(first[len(prefix):], self._default)
-        return exec(ctx, args)
