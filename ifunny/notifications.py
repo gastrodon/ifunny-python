@@ -1,5 +1,5 @@
 import json
-from objects import Peer, Post, Comment
+from ifunny.objects import Peer, Post, Comment
 
 class Notification:
     def __init__(self, data, client):

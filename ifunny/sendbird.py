@@ -11,16 +11,16 @@ class Socket:
         self.socket_thread = None
 
     def on_open(self):
-        print("ws opened")
+        return
 
     def on_close(self):
-        print("ws closed")
+        return
 
     def on_ping(self, data):
-        print("ws pinged")
+        return
 
     def on_pong(self, data):
-        print(f"The server sent back {data}")
+        return
 
     def on_message(self, data):
         return self.client.handler.resolve(data)
@@ -29,6 +29,7 @@ class Socket:
         route = requests.get(f"{self.sendbird_url}/routing/{self.route}").json()
         self.socket_url = route["ws_server"]
 
+        websocket.enableTrace(self.client.trace)
         self.socket = websocket.WebSocketApp(
             f"{self.socket_url}?dp=Android&pv=21&sv=3.0.55&ai={self.route}&user_id={self.client.id}&access_token={self.client.messenger_token}",
             on_message = self.on_message,
@@ -42,4 +43,4 @@ class Socket:
         self.active = True
 
     def send(self, data):
-        return self.socket.send(data)
+        self.socket.send(data)

@@ -2,3 +2,4 @@
 ignore
 __py*
 venv*
+test.*

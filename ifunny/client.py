@@ -1,29 +1,31 @@
 import praw, requests, json, os, base64, base64, hashlib
-from time import time
+from time import time, sleep
 from random import random
 from threading import Lock
-
-from sendbird import Socket
-from notifications import resolve_notification
-from handler import Handler
-
 from os import urandom
-from random import randrange
-from time import sleep
 from hashlib import sha1
 from base64 import b64encode
 
+from ifunny.sendbird import Socket
+from ifunny.notifications import resolve_notification
+from ifunny.handler import Handler
+
+
 class Client:
-    def __init__(self, handler = Handler, socket = Socket):
+    def __init__(self, handler = Handler, socket = Socket, trace = False, prefix = "-"):
         self.api = "https://api.ifunny.mobi/v4"
         self.id = None
         self.token = None
         self.authenticated = False
+
         self.socket = socket(self)
+        self.trace = trace
         self.handler = handler(self)
+        self.commands = Commands(self, prefix)
 
         self.__login_token = self.__generate_login_token()
-        self.__sendbird_req_id = int((time() / 100000) + (random() * 1000000000))
+        self.__sendbird_req_id = int(time() * 1000 + random() * 1000000)
+
         self.__sendbird_req_lock = Lock()
 
         self.recently_posted = []
@@ -52,7 +54,6 @@ class Client:
                 self.token = self.__config[f"{email}_token"]
                 self.authenticated = True
                 self.update_profile()
-                self.socket.start()
                 return
 
         headers = {
@@ -82,23 +83,15 @@ class Client:
             json.dump(self.__config, stream)
 
         self.update_profile()
-        self.socket.start()
 
     @property
     def headers(self):
-        _headers = {
-            "User-Agent": "iFunny/5.33.1(17680) Android/5.0.2 (samsung; SCH-R530U; samsung)"
-        }
+        _headers = {}
 
         if self.authenticated:
             _headers["Authorization"] = f"Bearer {self.token}"
 
         return _headers
-
-    @property
-    def account(self):
-        headers = self.headers
-        return requests.get(f"{self.api}/account", headers = headers).json()["data"]
 
     def get_notifications(self, limit = 30, types = None, prev = None, next = None):
         headers = self.headers
@@ -129,32 +122,6 @@ class Client:
             "paging": paging
         }
 
-    @property
-    def unread_notifications(self):
-        headers = self.headers
-        unread = []
-        page_next = None
-
-        response = requests.get(f"{self.api}/counters", headers = headers)
-
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-        count = response.json()["data"]["news"]
-
-        if not count:
-            return []
-
-        while len(unread) < count:
-            fetched_notifs = self.get_notifications(next = page_next)
-            unread = [*unread, *fetched_notifs["items"]]
-            page_next = fetched_notifs["paging"]["cursors"]["next"] if fetched_notifs["paging"]["hasNext"] else None
-
-            if not page_next:
-                break
-
-        return unread[:count]
-
     def __generate_login_token(self, path = "config.json"):
         with open(path, "r") as stream:
             config = json.load(stream)
@@ -177,11 +144,13 @@ class Client:
 
         return config["login_token"]
 
+    # Profile Stuff
+
     def update_profile(self):
         if not self.authenticated:
             raise Exception("Not logged in")
 
-        data = self.account
+        data = self.fetch_account_data()
         self.id = data["id"]
         self.messenger_token = data["messenger_token"]
         self.nick = data["nick"]
@@ -195,10 +164,41 @@ class Client:
         self.featured = data["num"]["featured"]
         self.smiles = data["num"]["total_smiles"]
 
+    def fetch_account_data(self):
+        headers = self.headers
+        return requests.get(f"{self.api}/account", headers = headers).json()["data"]
+
+    @property
+    def unread_notifications(self):
+        headers = self.headers
+        unread = []
+        page_next = None
+
+        response = requests.get(f"{self.api}/counters", headers = headers)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+            count = response.json()["data"]["news"]
+
+            if not count:
+                return []
+
+                while len(unread) < count:
+                    fetched_notifs = self.get_notifications(next = page_next)
+                    unread = [*unread, *fetched_notifs["items"]]
+                    page_next = fetched_notifs["paging"]["cursors"]["next"] if fetched_notifs["paging"]["hasNext"] else None
+
+                    if not page_next:
+                        break
+
+                        return unread[:count]
+
+    # Posting
+
     def post_image(self, image_data, tags = []):
         headers = {
-            "Authorization": f"Bearer {self.token}",
-            "User-Agent": "iFunny/5.33.1(17680) Android/5.0.2 (samsung; SCH-R530U; samsung)"
+            "Authorization": f"Bearer {self.token}"
         }
 
         data = {
@@ -215,16 +215,59 @@ class Client:
 
         return response.status_code
 
+    # Chat
+    def start_chat(self):
+        self.socket.start()
+
     @property
     def sendbird_req_id(self):
-        self.__sendbird_req_lock.aquire()
+        self.__sendbird_req_lock.acquire()
         self.__sendbird_req_id += 1
         self.__sendbird_req_lock.release()
         return self.__sendbird_req_id
 
-    @sendbird_req_id.setter()
-    def set_sendbird_req_id(self, value):
-        self.__sendbird_req_lock.aquire()
-        self.__sendbird_req_id = int(value)
+    @sendbird_req_id.setter
+    def sendbird_req_id(self, value):
+        value = int(value)
+        self.__sendbird_req_lock.acquire()
+        self.__sendbird_req_id = value
         self.__sendbird_req_lock.release()
         return self.__sendbird_req_id
+
+class Commands:
+    def __init__(self, client, prefix):
+        self.client = client
+        self.table = {
+            "help": self._help
+        }
+        self.__prefix = prefix
+
+    def _help(self, ctx, args):
+        ctx.send(f"These commands are available:\n{', '.join(self.table.keys())}")
+
+    def _default(self, ctx, args):
+        return
+
+    def get_prefix(self, ctx):
+        if isinstance(self.__prefix, str):
+            return self.__prefix
+
+        return self.__prefix(ctx)
+
+
+    def add(self, name = None):
+        def _inside(method):
+            c_name = name if name else method.__name__
+            self.table[c_name] = method
+
+        return _inside
+
+    def resolve_execute(self, ctx):
+        prefix = ctx.prefix
+        first = ctx.message.split(" ")[0]
+        args = ctx.message.split(" ")[1:]
+        if not first.startswith(prefix):
+            return None
+
+        exec = self.table.get(first[len(prefix):], self._default)
+        return exec(ctx, args)
