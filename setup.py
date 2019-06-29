@@ -26,7 +26,9 @@ setup(
         "unofficial"
     ],
     install_requires = [
-        "requests"
+        "requests",
+        "websocket-client",
+        "decorator"
     ],
     setup_requires = [
         "wheel"

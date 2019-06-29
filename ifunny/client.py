@@ -1,97 +1,177 @@
-import requests, json, os, base64, base64, hashlib
-from time import time, sleep
+import asyncio, json, os, requests, decorator, threading
+
 from random import random
-from threading import Lock
-from os import urandom
 from hashlib import sha1
 from base64 import b64encode
+from time import time
+from async_property import async_property
 
+from ifunny.handler import Handler
+from ifunny.commands import Command, Defaults
 from ifunny.sendbird import Socket
 from ifunny.notifications import resolve_notification
-from ifunny.handler import Handler
-
-
-class Commands:
-    def __init__(self, client, prefix):
-        self.client = client
-        self.table = {
-            "help": self._help
-        }
-        self.__prefix = prefix
-
-    def _help(self, ctx, args):
-        ctx.send(f"These commands are available:\n{', '.join(self.table.keys())}")
-
-    def _default(self, ctx, args):
-        return
-
-    def get_prefix(self, ctx):
-        if isinstance(self.__prefix, str):
-            return self.__prefix
-
-        return self.__prefix(ctx)
-
-
-    def add(self, name = None):
-        def _inside(method):
-            c_name = name if name else method.__name__
-            self.table[c_name] = method
-
-        return _inside
-
-    def resolve_execute(self, ctx):
-        prefix = ctx.prefix
-        first = ctx.message.split(" ")[0]
-        args = ctx.message.split(" ")[1:]
-        if not first.startswith(prefix):
-            return None
-
-        exec = self.table.get(first[len(prefix):], self._default)
-        return exec(ctx, args)
 
 class Client:
-    def __init__(self, commands = Commands, handler = Handler, socket = Socket, trace = False, prefix = None):
-        self.api = "https://api.ifunny.mobi/v4"
-        self.id = None
-        self.token = None
+    api = "https://api.ifunny.mobi/v4"
+    sendbird_api = "https://api-us-1.sendbird.com/v3"
+    __client_id = "MsOIJ39Q28"
+    __client_secret = "PTDc3H8a)Vi=UYap"
+
+    commands = {
+        "help" : Defaults.help
+    }
+
+    def __init__(self, handler = Handler(), socket = Socket(), trace = False, prefix = ""):
+
+        # locks
+        self.__sendbird_lock = asyncio.Lock()
+        self.__config_lock = threading.Lock()
+
+        # api info
         self.authenticated = False
+        self.__token = None
+        self.__id = None
 
-        self.socket = socket(self)
-        self.trace = trace
-        self.handler = handler(self)
-        self.commands = commands(self, prefix)
-
-        self.__login_token = self.__generate_login_token()
+        # sendbird api info
+        self.sendbird_session_key = None
+        self.messenger_token = None
         self.__sendbird_req_id = int(time() * 1000 + random() * 1000000)
 
-        self.__sendbird_req_lock = Lock()
+        # attatched classes
+        handler.client = self
+        self.handler = handler
 
-        self.recently_posted = []
-        self._last_read_hash = None
+        socket.client = self
+        self.socket = socket
+        self.socket_trace = trace
 
-        # initialize ifunny account info
-        self.id = None
-        self.messenger_token = None
-        self.nick = None
-        self.emial = None
-        self.banned = None
-        self.verified = None
-        self.deleted = None
-        self.subs = None
-        self.posts = None
-        self.days = None
-        self.featured = None
-        self.smiles = None
+        # cache file
+        self.__cache_path = f"{os.path.dirname(os.path.realpath(__file__))}/ifunny_config.json"
 
-        with open("config.json") as stream:
-            self.__config = json.load(stream)
+        try:
+            with open(self.__cache_path) as stream:
+                self.__config = json.load(stream)
 
-    def login(self, email, password, force = False):
-        if not force:
-            if self.__config.get(f"{email}_token"):
-                self.token = self.__config[f"{email}_token"]
+        except (FileNotFoundError):
+            self.__config = {}
+            self.__update_config()
+
+    # private properties
+
+    @property
+    def __headers(self):
+        _headers = {}
+
+        if self.__token:
+            _headers["Authorization"] = f"Bearer {self.__token}"
+
+        return _headers
+
+    @property
+    def __sendbird_headers(self):
+        _headers = {}
+
+        if self.socket.connected:
+            _headers["Session-Key"] = self.sendbird_session_key
+
+        return _headers
+
+    @property
+    def __login_token(self):
+        if self.__config.get("login_token"):
+            return self.__config["login_token"]
+
+        hex_string = os.urandom(32).hex().upper()
+        hex_id = f"{hex_string}_{self.__client_id}"
+        hash_decoded = f"{hex_string}:{self.__client_id}:{self.__client_secret}"
+        hash_encoded = sha1(hash_decoded.encode('utf-8')).hexdigest()
+        self.__config["login_token"] = b64encode(bytes(f"{hex_id}:{hash_encoded}", 'utf-8')).decode()
+
+        self.__update_config()
+
+        return self.__config["login_token"]
+
+    @property
+    def __account_data(self):
+        return requests.get(f"{self.api}/account", headers = self.__headers).json()["data"]
+
+    # public properties
+
+    @async_property
+    async def unread_notifications(self):
+        unread = []
+        page_next = None
+
+        response = requests.get(f"{self.api}/counters", headers = self.__headers)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        count = response.json()["data"]["news"]
+
+        if not count:
+            return unread
+
+        while len(unread) < count:
+            fetched = self.get_notifications(next = page_next)
+            unread = [*unread, *fetched["items"]]
+            page_next = fetched["paging"]["next"]
+
+            if not page_next:
+                break
+
+        return unread[:count]
+
+    # private coroutines
+
+    def __update_config(self):
+        self.__config_lock.acquire()
+        with open(self.__cache_path, "w") as stream:
+            json.dump(self.__config, stream)
+        self.__config_lock.release()
+
+    # public coroutines
+
+    async def get_notifications(self, limit = 30, types = None, prev = None, next = None):
+        params = {
+            "limit" : limit
+        }
+
+        if next:
+            params["next"] = next
+
+        elif prev:
+            params["prev"] = prev
+
+        response = requests.get(f"{self.api}/news/my", headers = self.__headers, params = params)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        parsed = response.json()["data"]["news"]
+        items = [resolve_notification(self, item) for item in parsed["items"]]
+
+        if types:
+            items = [item for item in items if item.type in types]
+
+        paging = {
+            "prev": parsed["paging"]["cursors"]["prev"] if parsed["paging"]["hasPrev"] else None,
+            "next": parsed["paging"]["cursors"]["next"] if parsed["paging"]["hasNext"] else None
+        }
+
+        return {
+            "items": items,
+            "paging": paging
+        }
+
+    async def login(self, email, password, force = False):
+        if not force and self.__config.get(f"{email}_token"):
+            print("cached values\n\n\n")
+            self.__token = self.__config[f"{email}_token"]
+            response = requests.get(f"{self.api}/account", headers = self.__headers)
+
+            if response.status_code == 200:
                 self.authenticated = True
-                self.update_profile()
                 return
 
         headers = {
@@ -104,190 +184,102 @@ class Client:
             "password": password
         }
 
-        response = requests.post(f"https://api.ifunny.mobi/v4/oauth2/token", headers = headers, data = data)
+        response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
 
         if response.status_code == 403:
-            sleep(10)
-            response = requests.post(f"https://api.ifunny.mobi/v4/oauth2/token", headers = headers, data = data)
+            asyncio.sleep(10)
+            response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
 
         if response.status_code != 200:
+            print(headers)
             raise Exception(response.text)
 
-        self.token = response.json()["access_token"]
+        self.__token = response.json()["access_token"]
         self.authenticated = True
-        self.__config[f"{email}_token"] = self.token
+        self.__config[f"{email}_token"] = self.__token
 
-        with open("config.json", "w") as stream:
-            json.dump(self.__config, stream)
+        self.__update_config()
 
-        self.update_profile()
-
-    @property
-    def headers(self):
-        _headers = {}
-
-        if self.authenticated:
-            _headers["Authorization"] = f"Bearer {self.token}"
-
-        return _headers
-
-    def get_notifications(self, limit = 30, types = None, prev = None, next = None):
-        headers = self.headers
-
-        params = {
-            "limit": limit
-        }
-
-        if next:
-            params["next"] = next
-
-        elif prev:
-            params["prev"] = prev
-
-        response = requests.get(f"{self.api}/news/my", headers = headers, params = params)
-
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-        items = [resolve_notification(item, self) for item in response.json()["data"]["news"]["items"]]
-        paging = response.json()["data"]["news"]["paging"]
-
-        if types:
-            items = [item for item in items if item.type in types]
-
-        return {
-            "items": items,
-            "paging": paging
-        }
-
-    def __generate_login_token(self, path = "config.json"):
-        try:
-            with open(path, "r") as stream:
-                config = json.load(stream)
-        except(FileNotFoundError, json.JSONDecodeError):
-            config = {}
-
-        if config.get("login_token"):
-            return config["login_token"]
-
-        client_id = "MsOIJ39Q28"
-        client_secret = "PTDc3H8a)Vi=UYap"
-
-        hex_string = urandom(32).hex().upper()
-        hex_id = f"{hex_string}_{client_id}"
-        hash_decoded = f"{hex_string}:{client_id}:{client_secret}"
-        hash_encoded = sha1(hash_decoded.encode('utf-8')).hexdigest()
-        config["login_token"] = b64encode(bytes(f"{hex_id}:{hash_encoded}", 'utf-8')).decode()
-
-
-        with open(path, "w") as stream:
-            json.dump(config, stream)
-
-        return config["login_token"]
-
-    # Profile Stuff
-
-    def update_profile(self):
-        if not self.authenticated:
-            raise Exception("Not logged in")
-
-        data = self.fetch_account_data()
-        self.id = data["id"]
-        self.messenger_token = data["messenger_token"]
-        self.nick = data["nick"]
-        self.emial = data["email"]
-        self.banned = data["is_banned"]
-        self.verified = data["is_verified"]
-        self.deleted = data["is_deleted"]
-        self.subs = data["num"]["subscribers"]
-        self.posts = data["num"]["total_posts"]
-        self.days = data["num"]["created"]
-        self.featured = data["num"]["featured"]
-        self.smiles = data["num"]["total_smiles"]
-
-    def fetch_account_data(self):
-        headers = self.headers
-        return requests.get(f"{self.api}/account", headers = headers).json()["data"]
-
-    @property
-    def unread_notifications(self):
-        headers = self.headers
-        unread = []
-        page_next = None
-
-        response = requests.get(f"{self.api}/counters", headers = headers)
-
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-            count = response.json()["data"]["news"]
-
-            if not count:
-                return []
-
-                while len(unread) < count:
-                    fetched_notifs = self.get_notifications(next = page_next)
-                    unread = [*unread, *fetched_notifs["items"]]
-                    page_next = fetched_notifs["paging"]["cursors"]["next"] if fetched_notifs["paging"]["hasNext"] else None
-
-                    if not page_next:
-                        break
-
-                        return unread[:count]
-
-    def set_chat_visibility(self, param):
-        valid = ["public", "private", "subscribers"]
-
-        if param not in valid:
-            raise Exception(f"params must be of type {', '.join(valid)}, not {param}")
-
-        headers = self.headers
-
-        params = {
-            "is_private": 0,
-            "messaging_privacy_status": param
-        }
-
-        response = requests.put(f"{self.api}/account", params = params, headers = headers)
-
-        return response
-
-    # Posting
-
-    def post_image(self, image_data, tags = []):
-        headers = {
-            "Authorization": f"Bearer {self.token}"
-        }
-
+    async def post_image(self, image_data, tags = [], visibility = "public"):
         data = {
             "type": "pic",
             "tags": json.dumps(tags),
-            "visibility": "public"
+            "visibility": visibility
         }
 
         files = {
             "image": image_data
         }
 
-        response = requests.post(f"{self.api}/content", headers = headers, data = data, files = files)
-
+        response = requests.post(f"{self.api}/content", headers = self.__headers, data = data, files = files)
         return response.status_code
 
-    # Chat
-    def start_chat(self):
-        self.socket.start()
+    async def resolve_command(self, ctx):
+        parsed = ctx.message.split(" ")
+        first, args = parsed[0], parsed[1:]
 
-    @property
-    def sendbird_req_id(self):
-        self.__sendbird_req_lock.acquire()
-        self.__sendbird_req_id += 1
-        self.__sendbird_req_lock.release()
+        if not first.startswith(prefix):
+            return
+
+        cmd = self.commands.get(first[len(prefix):], commands.Defaults.default)
+        await cmd.execute(ctx, args)
+
+    # public decorators
+
+    def command(self, name = None):
+        def _inner(coro):
+            _name = name if name else coro.__name__
+            self.commands[_name] = Command(coro, name)
+
+        return _inner
+
+    # sendbird methods
+
+    async def start_chat(self):
+        if not self.messenger_token:
+            self.messenger_token = self.__account_data["messenger_token"]
+
+        return await self.socket.start()
+
+    # sendbird coroutines
+
+    async def next_req_id(self):
+        async with self.__sendbird_lock:
+            self.__sendbird_req_id += 1
+
         return self.__sendbird_req_id
 
-    @sendbird_req_id.setter
-    def sendbird_req_id(self, value):
-        value = int(value)
-        self.__sendbird_req_lock.acquire()
-        self.__sendbird_req_id = value
-        self.__sendbird_req_lock.release()
-        return self.__sendbird_req_id
+    async def sendbird_upload(self, channel_url, file_data):
+        files = {
+            "file": file_data
+        }
+
+        data = {
+            "thumbnail1"    : "780, 780",
+            "thumbnail2"    : "320,320",
+            "channel_url"   : channel_url
+        }
+
+        response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.__sendbird_headers, files = files, data = data)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        return response.json()["url"]
+
+    # account info properties
+
+    @async_property
+    async def nick(self):
+        return self.__account_data["nick"]
+
+    @async_property
+    async def email(self):
+        return self.__account_data["email"]
+
+    @async_property
+    async def id(self):
+        if not self.__id:
+            self.__id = self.__account_data["id"]
+
+        return self.__id

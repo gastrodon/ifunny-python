@@ -1,4 +1,5 @@
 import json, time, random
+from ifunny.utils import determine_mime
 
 class Peer:
     def __init__(self, data, client):
@@ -61,3 +62,48 @@ class ChatChannel:
         self.sendbird_url = data["channel_url"]
         self.id = data["channel_id"]
         self.type = data["channel_type"]
+
+class MessageContext:
+    def __init__(self, client, data):
+        self.client = client
+        self.socket = self.client.socket
+        self.commands = self.client.commands
+        self.channel_url = data["channel_url"]
+        self.message = data["message"]
+
+    async def send(self, message):
+        response_data = {
+            "channel_url"   : self.channel_url,
+            "message"       : message
+        }
+
+        return self.socket.send(f"MESG{json.dumps(response_data, separators = (',', ':'))}\n")
+
+
+    async def send_file_url(self, image_url, width = 780, height = 780):
+        lower_ratio = min([width / height, height / width])
+        type = "tall" if height >= width else "wide"
+        mime = determine_mime(image_url)
+
+        response_data = {
+            "channel_url"   : self.channel_url,
+            "name"          : f"botimage",
+            "req_id"        : str(int(round(time.time() * 1000))),
+            "type"          : mime,
+            "url"           : image_url,
+            "thumbnails"    : [
+                {
+                    "url"           : image_url,
+                    "real_height"   : int(780 if type is "tall" else 780 * lower_ratio),
+                    "real_width"    : int(780 if type is "wide" else 780 * lower_ratio),
+                    "height"        : width,
+                    "width"         : height,
+                }
+            ]
+        }
+
+        return self.socket.send(f"FILE{json.dumps(response_data, separators = (',', ':'))}\n")
+
+    @property
+    def prefix(self):
+        return self.commands.get_prefix(self)
