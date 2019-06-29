@@ -14,7 +14,6 @@ class Socket:
         return
 
     def on_close(self):
-        print("closed")
         return
 
     def on_ping(self, data):
@@ -24,11 +23,17 @@ class Socket:
         return
 
     def on_message(self, data):
-        print(data)
-        return
-        return self.client.handler.resolve(data)
+        threading.Thread(target = self.client.handler.resolve, args = [data]).start()
+
+    def on_error(self, error):
+        raise error
+
+
 
     def start(self):
+        if not self.client:
+            raise Exception(f"client cannont be {self.client}")
+
         route = requests.get(f"{self.sendbird_url}/routing/{self.route}").json()
         self.socket_url = route["ws_server"]
 
@@ -38,11 +43,9 @@ class Socket:
             on_message = self.on_message,
             on_open = self.on_open,
             on_close = self.on_close,
-            on_ping = self.on_ping
+            on_ping = self.on_ping,
+            on_error = self.on_error
         )
-
-        self.socket.run_forever(ping_interval = 15)
-        return
 
         self.socket_thread = threading.Thread(target = self.socket.run_forever, kwargs = {"ping_interval": 15})
         self.socket_thread.start()

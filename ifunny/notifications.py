@@ -44,7 +44,7 @@ class CommentNotification(Notification):
 
 
 _match = {
-"comment": CommentNotification
+    "comment": CommentNotification
 }
 
 def resolve_notification(data, client):

@@ -71,7 +71,7 @@ class MessageContext:
         self.channel_url = data["channel_url"]
         self.message = data["message"]
 
-    async def send(self, message):
+    def send(self, message):
         response_data = {
             "channel_url"   : self.channel_url,
             "message"       : message
@@ -80,7 +80,7 @@ class MessageContext:
         return self.socket.send(f"MESG{json.dumps(response_data, separators = (',', ':'))}\n")
 
 
-    async def send_file_url(self, image_url, width = 780, height = 780):
+    def send_file_url(self, image_url, width = 780, height = 780):
         lower_ratio = min([width / height, height / width])
         type = "tall" if height >= width else "wide"
         mime = determine_mime(image_url)
@@ -106,4 +106,4 @@ class MessageContext:
 
     @property
     def prefix(self):
-        return self.commands.get_prefix(self)
+        return self.client.prefix

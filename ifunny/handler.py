@@ -1,4 +1,4 @@
-import json, requests, asyncio, decorator
+import json, requests
 from time import time
 
 from ifunny.objects import MessageContext
@@ -14,43 +14,35 @@ class Handler:
             "LOGI": self._on_ws_connect
         }
 
-    async def resolve(self, data):
-        print("inside handler")
+    def resolve(self, data):
         key, data = data[:4], json.loads(data[4:])
-        try:
-            await self.matches.get(key, self.default_match)(key, data)
-        except Exception as e:
-            print(e)
-        print("handler completed")
+        self.matches.get(key, self.default_match)(key, data)
 
     # websocket hook defaults
 
-    async def default_match(self, key, data):
+    def default_match(self, key, data):
         return
 
-    async def default_event(self, *args):
+    def default_event(self, *args):
         return
 
     # private hooks
 
-    async def _on_message(self, key, data):
+    def _on_message(self, key, data):
         if data["user"]["name"] == self.client.nick:
             return
 
-        await self.events.get("on_message", self.default_event)(data) # TODO: use a message object here
+        self.events.get("on_message", self.default_event)(data) # TODO: use a message object here
 
         ctx = MessageContext(self.client, data)
-        await self.client.resolve_command(ctx)
+        self.client.resolve_command(ctx)
 
-    async def _on_ws_connect(self, key, data):
-        print("in _on_ws_connect")
+    def _on_ws_connect(self, key, data):
         self.client.sendbird_session_key = data["key"]
         self.client.socket.connected = True
+        self.events.get("on_ws_connect", self.default_event)(data) # TODO: consider using an object for the data
 
-        await self.events.get("on_ws_connect", self.default_event)(data) # TODO: consider using an object for the data
-        print("exit _on_ws_connect")
-
-    async def _on_ping(self, key, data):
+    def _on_ping(self, key, data):
         timestamp = int(time() * 1000)
 
         data = json.dumps({
@@ -63,10 +55,9 @@ class Handler:
 
     # public decorators
 
-    @decorator.decorator
-    async def add(self, name = None):
-        def _inner(coro):
-            _name = name if name else coro.__name__
-            self.events[_name] = coro
+    def add(self, name = None):
+        def _inner(method):
+            _name = name if name else method.__name__
+            self.events[_name] = method
 
         return _inner

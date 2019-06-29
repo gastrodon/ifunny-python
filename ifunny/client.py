@@ -1,10 +1,9 @@
-import asyncio, json, os, requests, decorator, threading
+import json, os, requests, threading
 
 from random import random
 from hashlib import sha1
 from base64 import b64encode
-from time import time
-from async_property import async_property
+from time import time, sleep
 
 from ifunny.handler import Handler
 from ifunny.commands import Command, Defaults
@@ -23,8 +22,11 @@ class Client:
 
     def __init__(self, handler = Handler(), socket = Socket(), trace = False, prefix = ""):
 
+        # command
+        self.__prefix = prefix
+
         # locks
-        self.__sendbird_lock = asyncio.Lock()
+        self.__sendbird_lock = threading.Lock()
         self.__config_lock = threading.Lock()
 
         # api info
@@ -34,7 +36,7 @@ class Client:
 
         # sendbird api info
         self.sendbird_session_key = None
-        self.messenger_token = None
+        self.__messenger_token = None
         self.__sendbird_req_id = int(time() * 1000 + random() * 1000000)
 
         # attatched classes
@@ -97,8 +99,25 @@ class Client:
 
     # public properties
 
-    @async_property
-    async def unread_notifications(self):
+    @property
+    def prefix(self):
+        if callable(self.__prefix):
+            return self.__prefix()
+
+        if isinstance(self.__prefix, str):
+            return self.__prefix
+
+        raise Exception(f"prefix must be callable or str, not {type(self.__prefix)}")
+
+    @property
+    def messenger_token(self):
+        if not self.__messenger_token:
+            self.__messenger_token = self.__account_data["messenger_token"]
+
+        return self.__messenger_token
+
+    @property
+    def unread_notifications(self):
         unread = []
         page_next = None
 
@@ -122,7 +141,14 @@ class Client:
 
         return unread[:count]
 
-    # private coroutines
+    @property
+    def next_req_id(self):
+        self.__sendbird_lock.acquire()
+        self.__sendbird__req_id += 1
+        self.__sendbird_lock.release()
+        return self.__sendbird_req_id
+
+    # private methods
 
     def __update_config(self):
         self.__config_lock.acquire()
@@ -130,9 +156,9 @@ class Client:
             json.dump(self.__config, stream)
         self.__config_lock.release()
 
-    # public coroutines
+    # public methods
 
-    async def get_notifications(self, limit = 30, types = None, prev = None, next = None):
+    def get_notifications(self, limit = 30, types = None, prev = None, next = None):
         params = {
             "limit" : limit
         }
@@ -164,9 +190,8 @@ class Client:
             "paging": paging
         }
 
-    async def login(self, email, password, force = False):
+    def login(self, email, password, force = False):
         if not force and self.__config.get(f"{email}_token"):
-            print("cached values\n\n\n")
             self.__token = self.__config[f"{email}_token"]
             response = requests.get(f"{self.api}/account", headers = self.__headers)
 
@@ -187,11 +212,10 @@ class Client:
         response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
 
         if response.status_code == 403:
-            asyncio.sleep(10)
+            sleep(10)
             response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
 
         if response.status_code != 200:
-            print(headers)
             raise Exception(response.text)
 
         self.__token = response.json()["access_token"]
@@ -200,7 +224,7 @@ class Client:
 
         self.__update_config()
 
-    async def post_image(self, image_data, tags = [], visibility = "public"):
+    def post_image(self, image_data, tags = [], visibility = "public"):
         data = {
             "type": "pic",
             "tags": json.dumps(tags),
@@ -214,42 +238,36 @@ class Client:
         response = requests.post(f"{self.api}/content", headers = self.__headers, data = data, files = files)
         return response.status_code
 
-    async def resolve_command(self, ctx):
+    def resolve_command(self, ctx):
         parsed = ctx.message.split(" ")
         first, args = parsed[0], parsed[1:]
 
-        if not first.startswith(prefix):
+        if not first.startswith(self.prefix):
             return
 
-        cmd = self.commands.get(first[len(prefix):], commands.Defaults.default)
-        await cmd.execute(ctx, args)
+        cmd = self.commands.get(first[len(self.prefix):], Defaults.default)
+        cmd.execute(ctx, args)
 
     # public decorators
 
     def command(self, name = None):
-        def _inner(coro):
-            _name = name if name else coro.__name__
-            self.commands[_name] = Command(coro, name)
+        def _inner(method):
+            _name = name if name else method.__name__
+            self.commands[_name] = Command(method, _name)
 
         return _inner
 
     # sendbird methods
 
-    async def start_chat(self):
+    def start_chat(self):
         if not self.messenger_token:
             self.messenger_token = self.__account_data["messenger_token"]
 
-        return await self.socket.start()
+        return self.socket.start()
 
     # sendbird coroutines
 
-    async def next_req_id(self):
-        async with self.__sendbird_lock:
-            self.__sendbird_req_id += 1
-
-        return self.__sendbird_req_id
-
-    async def sendbird_upload(self, channel_url, file_data):
+    def sendbird_upload(self, channel_url, file_data):
         files = {
             "file": file_data
         }
@@ -269,16 +287,16 @@ class Client:
 
     # account info properties
 
-    @async_property
-    async def nick(self):
+    @property
+    def nick(self):
         return self.__account_data["nick"]
 
-    @async_property
-    async def email(self):
+    @property
+    def email(self):
         return self.__account_data["email"]
 
-    @async_property
-    async def id(self):
+    @property
+    def id(self):
         if not self.__id:
             self.__id = self.__account_data["id"]
 
