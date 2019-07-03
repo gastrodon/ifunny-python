@@ -1,5 +1,5 @@
 import json
-from ifunny.objects import Peer, Post, Comment
+from ifunny.objects import User, Post, Comment
 
 class Notification:
     def __init__(self, data, client):
@@ -15,7 +15,7 @@ class Notification:
     @property
     def user(self):
         if not self.__user and "user" in self.__data:
-            self.__user = Peer(self.__data["user"], self.client)
+            self.__user = User(self.__data["user"], self.client)
 
         return self.__creator
 

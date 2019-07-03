@@ -1,40 +1,280 @@
-import json, time, random
-from ifunny.utils import determine_mime
+import json, time, random, requests
+from ifunny.utils import determine_mime, invalid_type
 
-class Peer:
-    def __init__(self, data, client):
+class ObjectBase:
+    def __init__(self, id, client, data = None, update_interval = 30):
         self.client = client
+        self.id = id
 
-        self.nick = data["nick"]
-        self.id = data["id"]
-        self.banned = data["is_banned"]
-        self.deleted = data["is_deleted"]
-        self.verified = data["is_verified"]
+        self._account_data_payload = data
+        self._updated = time.time()
+        self._update_interval = update_interval
+
+        self._url = None
+
+    def _get_prop(self, key):
+        if not self._account_data.get(key, None):
+            self._updated = 0
+
+        return self._account_data[key]
+
+    def _update(self):
+        self._account_data_payload = None
+
+    def _paginated_data(self, data, items):
+        paging = paging = {
+            "prev":     data["paging"]["cursors"]["prev"] if data["paging"]["hasPrev"] else None,
+            "next":     data["paging"]["cursors"]["next"] if data["paging"]["hasNext"] else None
+        }
+
+        return {
+            "items":    items,
+            "paging":   paging
+        }
+
+    @property
+    def _account_data(self):
+        if time.time() - self._updated > self._update_interval or self._account_data_payload is None:
+            self._updated = time.time()
+            self._account_data_payload = requests.get(self._url, headers = self.client.headers).json()["data"]
+
+        return self._account_data_payload
+
+class User(ObjectBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._url = f"{self.client.api}/users/{self.id}"
 
     def __repr__(self):
         return self.nick
 
-class Post:
-    def __init__(self, data, client):
-        self.client = client
-        self.__data = data
-        self.__creator = None
+    # public methods
 
-        self.type = data["type"]
-        self.id = data["id"]
-        self.tags = data["tags"]
-        self.smiles = data["num"]["smiles"]
-        self.unsmiles = data["num"]["unsmiles"]
-        self.comments = data["num"]["comments"]
-        self.views = data["num"]["views"]
-        self.repubs = data["num"]["republished"]
+    def timeline(self, limit = 25, prev = None, next = None):
+        params = {
+            "limit":    limit
+        }
+
+        if next:
+            params["next"] = next
+        elif prev:
+            params["prev"] = prev
+
+        response = requests.get(f"{self.client.api}/timelines/users/{self.id}", headers = self.client.headers, params = params)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        data = response.json()["data"]["content"]
+
+        items = [Post(item["id"], self.client) for item in data["items"]]
+
+        return self._paginated_data(data, items)
+
+    def subscribers(self, limit = 25, prev = None, next = None):
+        params = {
+            "limit":    limit
+        }
+
+        if next:
+            params["next"] = next
+        elif prev:
+            params["prev"] = prev
+
+        response = requests.get(f"{self._url}/subscribers", headers = self.client.headers, params = params)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        data = response.json()["data"]["users"]
+
+
+        items = [User(item["id"], self.client, data = item) for item in data["items"]]
+
+        return self._paginated_data(data, items)
+
+    def subscriptions(self, limit = 25, prev = None, next = None):
+        params = {
+            "limit":    limit
+        }
+
+        if next:
+            params["next"] = next
+        elif prev:
+            params["prev"] = prev
+
+        response = requests.get(f"{self._url}/subscriptions", headers = self.client.headers, params = params)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        data = response.json()["data"]["users"]
+
+        items = [User(item["id"], self.client, data = item) for item in data["items"]]
+
+        return self._paginated_data(data, items)
+
+    def subscribe(self):
+        response = requests.put(f"{self._url}/subscribers", headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        return True
+
+    def unsubscribe(self):
+        response = requests.delete(f"{self._url}/subscribers", headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        return True
+
+    def block(self, type = "user"):
+        valid = ["user", "installation"]
+
+        if type not in valid:
+            raise invalid_type("type", type, valid)
+            
+        params = {
+            "type": type
+        }
+
+        response = requests.put(f"{self.client.api}/users/my/blocked/{self.id}", params = params, headers = self.client.headers)
+
+        if response.status_code != 200:
+            if response.json().get("error") == "already_blocked":
+                return False
+
+            raise Exception(response.text)
+
+        return True
+
+    def unblock(self):
+        params = {
+            "type": "user"
+        }
+
+        response = requests.delete(f"{self.client.api}/users/my/blocked/{self.id}", params = params, headers = self.client.headers)
+
+        if response.status_code != 200:
+            if response.json().get("error") == "not_blocked":
+                return False
+
+            raise Exception(response.text)
+
+        return True
+
+    def report(self, type):
+        valid = ["hate", "nude", "spam", "target", "harm"]
+
+        if type not in valid:
+            raise invalid_type("type", type, valid)
+
+        params = {
+            "type": type
+        }
+
+        response = requests.put(f"{self._url}/abuses", headers = self.client.headers, params = params)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        return True
+
+    # public properties
+
+    # authentication independant attributes
 
     @property
-    def creator(self):
-        if not self.__creator:
-            self.__creator = Peer(self.__data["creator"], self.client)
+    def nick(self):
+        return self._get_prop("nick")
 
-        return self.__creator
+    @property
+    def about(self):
+        return self._get_prop("about")
+
+    @property
+    def posts(self):
+        return self._get_prop("num")["featured"]
+
+    @property
+    def featured(self):
+        return self._get_prop("num")["featured"]
+
+    @property
+    def smiles(self):
+        return self._get_prop("num")["total_smiles"]
+
+    @property
+    def subscriber_count(self):
+        return self._get_prop("num")["subscribers"]
+
+    @property
+    def subscription_count(self):
+        return self._get_prop("num")["subscriptions"]
+
+    @property
+    def is_verified(self):
+        return self._get_prop("is_verified")
+
+    @property
+    def is_banned(self):
+        return self._get_prop("is_banned")
+
+    @property
+    def is_deleted(self):
+        return self._get_prop("is_deleted")
+
+    @property
+    def days(self):
+        return self._get_prop("meme_experience")["days"]
+
+    @property
+    def rank(self):
+        return self._get_prop("meme_experience")["rank"]
+
+    @property
+    def nick_color(self):
+        try:
+            return self._get_prop("nick_color")
+        except KeyError:
+            return None
+
+    @property
+    def chat_privacy(self):
+        return self._get_prop("messaging_privacy_status")
+
+    # authentication dependant attributes
+
+    @property
+    def blocked(self):
+        return self._get_prop("is_blocked")
+
+    @property
+    def blocking_me(self):
+        return self._get_prop("are_you_blocked")
+
+    @property
+    def can_chat(self):
+        return self._get_prop("is_available_for_chat")
+
+    @property
+    def notification_updates(self):
+        return self._get_prop("is_subscribed_to_updates")
+
+    @property
+    def is_subscribed(self):
+        return self._get_prop("is_in_subscribers")
+
+    @property
+    def is_subscription(self):
+        return self._get_prop("is_in_subscriptions")
+
+
+class Post(ObjectBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 class Comment:
     def __init__(self, data, client):

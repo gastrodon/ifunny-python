@@ -9,6 +9,7 @@ from ifunny.handler import Handler
 from ifunny.commands import Command, Defaults
 from ifunny.sendbird import Socket
 from ifunny.notifications import resolve_notification
+from ifunny.objects import User
 
 class Client:
     api = "https://api.ifunny.mobi/v4"
@@ -39,13 +40,15 @@ class Client:
         self.__messenger_token = None
         self.__sendbird_req_id = int(time() * 1000 + random() * 1000000)
 
-        # attatched classes
+        # attatched objects
         handler.client = self
         self.handler = handler
 
         socket.client = self
         self.socket = socket
         self.socket_trace = trace
+
+        self.__user = None
 
         # cache file
         self.__cache_path = f"{os.path.dirname(os.path.realpath(__file__))}/ifunny_config.json"
@@ -58,16 +61,10 @@ class Client:
             self.__config = {}
             self.__update_config()
 
+    def __repr__(self):
+        return self.user.nick
+
     # private properties
-
-    @property
-    def __headers(self):
-        _headers = {}
-
-        if self.__token:
-            _headers["Authorization"] = f"Bearer {self.__token}"
-
-        return _headers
 
     @property
     def __sendbird_headers(self):
@@ -95,9 +92,18 @@ class Client:
 
     @property
     def __account_data(self):
-        return requests.get(f"{self.api}/account", headers = self.__headers).json()["data"]
+        return requests.get(f"{self.api}/account", headers = self.headers).json()["data"]
 
     # public properties
+
+    @property
+    def headers(self):
+        _headers = {}
+
+        if self.__token:
+            _headers["Authorization"] = f"Bearer {self.__token}"
+
+            return _headers
 
     @property
     def prefix(self):
@@ -121,7 +127,7 @@ class Client:
         unread = []
         page_next = None
 
-        response = requests.get(f"{self.api}/counters", headers = self.__headers)
+        response = requests.get(f"{self.api}/counters", headers = self.headers)
 
         if response.status_code != 200:
             raise Exception(response.text)
@@ -148,6 +154,13 @@ class Client:
         self.__sendbird_lock.release()
         return self.__sendbird_req_id
 
+    @property
+    def user(self):
+        if not self.__user:
+            self.__user = User(self.id, self)
+
+        return self.__user
+
     # private methods
 
     def __update_config(self):
@@ -169,7 +182,7 @@ class Client:
         elif prev:
             params["prev"] = prev
 
-        response = requests.get(f"{self.api}/news/my", headers = self.__headers, params = params)
+        response = requests.get(f"{self.api}/news/my", headers = self.headers, params = params)
 
         if response.status_code != 200:
             raise Exception(response.text)
@@ -193,7 +206,7 @@ class Client:
     def login(self, email, password, force = False):
         if not force and self.__config.get(f"{email}_token"):
             self.__token = self.__config[f"{email}_token"]
-            response = requests.get(f"{self.api}/account", headers = self.__headers)
+            response = requests.get(f"{self.api}/account", headers = self.headers)
 
             if response.status_code == 200:
                 self.authenticated = True
@@ -235,7 +248,7 @@ class Client:
             "image": image_data
         }
 
-        response = requests.post(f"{self.api}/content", headers = self.__headers, data = data, files = files)
+        response = requests.post(f"{self.api}/content", headers = self.headers, data = data, files = files)
         return response.status_code
 
     def resolve_command(self, ctx):
@@ -265,8 +278,6 @@ class Client:
 
         return self.socket.start()
 
-    # sendbird coroutines
-
     def sendbird_upload(self, channel_url, file_data):
         files = {
             "file": file_data
@@ -289,7 +300,7 @@ class Client:
 
     @property
     def nick(self):
-        return self.__account_data["nick"]
+        return self.user.nick
 
     @property
     def email(self):
