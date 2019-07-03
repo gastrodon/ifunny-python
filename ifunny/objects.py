@@ -1,5 +1,5 @@
 import json, time, random, requests
-from ifunny.utils import determine_mime, invalid_type
+from ifunny.utils import determine_mime, invalid_type, paginated_data, paginated_params
 
 class ObjectBase:
     def __init__(self, id, client, data = None, update_interval = 30):
@@ -21,17 +21,6 @@ class ObjectBase:
     def _update(self):
         self._account_data_payload = None
 
-    def _paginated_data(self, data, items):
-        paging = paging = {
-            "prev":     data["paging"]["cursors"]["prev"] if data["paging"]["hasPrev"] else None,
-            "next":     data["paging"]["cursors"]["next"] if data["paging"]["hasNext"] else None
-        }
-
-        return {
-            "items":    items,
-            "paging":   paging
-        }
-
     @property
     def _account_data(self):
         if time.time() - self._updated > self._update_interval or self._account_data_payload is None:
@@ -51,14 +40,7 @@ class User(ObjectBase):
     # public methods
 
     def timeline(self, limit = 25, prev = None, next = None):
-        params = {
-            "limit":    limit
-        }
-
-        if next:
-            params["next"] = next
-        elif prev:
-            params["prev"] = prev
+        params = paginated_params(limit, prev, next)
 
         response = requests.get(f"{self.client.api}/timelines/users/{self.id}", headers = self.client.headers, params = params)
 
@@ -67,19 +49,12 @@ class User(ObjectBase):
 
         data = response.json()["data"]["content"]
 
-        items = [Post(item["id"], self.client) for item in data["items"]]
+        items = [Post(item["id"], self.client, data = item) for item in data["items"]]
 
-        return self._paginated_data(data, items)
+        return paginated_data(data, items)
 
     def subscribers(self, limit = 25, prev = None, next = None):
-        params = {
-            "limit":    limit
-        }
-
-        if next:
-            params["next"] = next
-        elif prev:
-            params["prev"] = prev
+        params = paginated_params(limit, prev, next)
 
         response = requests.get(f"{self._url}/subscribers", headers = self.client.headers, params = params)
 
@@ -91,17 +66,10 @@ class User(ObjectBase):
 
         items = [User(item["id"], self.client, data = item) for item in data["items"]]
 
-        return self._paginated_data(data, items)
+        return paginated_data(data, items)
 
     def subscriptions(self, limit = 25, prev = None, next = None):
-        params = {
-            "limit":    limit
-        }
-
-        if next:
-            params["next"] = next
-        elif prev:
-            params["prev"] = prev
+        params = paginated_params(limit, prev, next)
 
         response = requests.get(f"{self._url}/subscriptions", headers = self.client.headers, params = params)
 
@@ -112,7 +80,7 @@ class User(ObjectBase):
 
         items = [User(item["id"], self.client, data = item) for item in data["items"]]
 
-        return self._paginated_data(data, items)
+        return paginated_data(data, items)
 
     def subscribe(self):
         response = requests.put(f"{self._url}/subscribers", headers = self.client.headers)
@@ -135,7 +103,7 @@ class User(ObjectBase):
 
         if type not in valid:
             raise invalid_type("type", type, valid)
-            
+
         params = {
             "type": type
         }
@@ -271,28 +239,76 @@ class User(ObjectBase):
     def is_subscription(self):
         return self._get_prop("is_in_subscriptions")
 
-
 class Post(ObjectBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._url = f"{self.client.api}/content/{self.id}"
 
-class Comment:
-    def __init__(self, data, client):
-        self.client = client
-        self.__data = data
-        self.__creator = None
-        # v4/users/data["id"] links to the user data
+    def smiles(self, limit = 25, prev = None, next = None):
+        params = paginated_params(limit, prev, next)
 
-        self.text = data["text"]
-        self.id = data["id"]
-        self.cid = data["cid"]
-        self.state = data["state"] #top comments have the state top, others have normal
-        self.is_reply = data["is_reply"]
-        self.smiles = data["num"].get("smiles", 0)
-        self.unsmiles = data["num"].get("unsmiles", 0)
+        response = requests.get(f"{self._url}/smiles", params = params, headers = self.client.headers)
 
-    def __repr__(self):
-        return self.text
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        data = response.json()["data"]["users"]
+
+        items = [User(item["id"], self.client, data = item) for item in data["items"]]
+
+        return paginated_data(data, items)
+
+    def comments(self, limit = 25, prev = None, next = None):
+        params = paginated_params(limit, prev, next)
+
+        response = requests.get(f"{self._url}/comments", params = params, headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        data = response.json()["data"]["comments"]
+
+        items = [Comment(item["id"], self.client, data = item) for item in data["items"]]
+
+        return paginated_data(data, items)
+
+    @property
+    def smile_count(self):
+        return self._get_prop("num")["smiles"]
+
+    @property
+    def unsmile_count(self):
+        return self._get_prop("num")["unsmiles"]
+
+    @property
+    def guest_smile_count(self):
+        return self._get_prop("num")["guest_smiles"]
+
+    @property
+    def comment_count(self):
+        return self._get_prop("num")["comments"]
+
+    @property
+    def views(self):
+        return self._get_prop("num")["views"]
+
+    @property
+    def republish_count(self):
+        return self._get_prop("num")["republished"]
+
+    @property
+    def shares(self):
+        return self._get_prop("num")["shares"]
+
+    @property
+    def creator(self):
+        data = self._get_prop("creator")
+        return User(data["id"], self.client, data = data)
+
+
+class Comment(ObjectBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 class ChatChannel:
     def __init__(self, data, client):
@@ -334,8 +350,8 @@ class MessageContext:
             "thumbnails"    : [
                 {
                     "url"           : image_url,
-                    "real_height"   : int(780 if type is "tall" else 780 * lower_ratio),
-                    "real_width"    : int(780 if type is "wide" else 780 * lower_ratio),
+                    "real_height"   : int(780 if type == "tall" else 780 * lower_ratio),
+                    "real_width"    : int(780 if type == "wide" else 780 * lower_ratio),
                     "height"        : width,
                     "width"         : height,
                 }
