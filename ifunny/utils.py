@@ -1,3 +1,5 @@
+import requests
+
 mime_types = {
     "png"   : "image/png",
     "jpg"   : "image/jpeg",
@@ -18,7 +20,7 @@ def determine_mime(url, bias = "image/png"):
 def invalid_type(name, type, valid):
     return Exception(f"{name} must be of type {', '.join(valid)}, not {type}")
 
-def paginated_data(data, items):
+def format_paginated(data, items):
     paging = paging = {
         "prev":     data["paging"]["cursors"]["prev"] if data["paging"]["hasPrev"] else None,
         "next":     data["paging"]["cursors"]["next"] if data["paging"]["hasNext"] else None
@@ -40,3 +42,25 @@ def paginated_params(limit, prev, next):
         params["prev"] = prev
 
     return params
+
+def paginated_data(source_url, data_key, headers, limit = 25, prev = None, next = None):
+    params = paginated_params(limit, prev, next)
+
+    response = requests.get(source_url, headers = headers, params = params)
+
+    if response.status_code != 200:
+        raise Exception(f"requesting {response.url} failed\n{response.text}")
+
+    return response.json()["data"][data_key]
+
+def paginated_generator(source):
+    buffer = source()
+
+    while True:
+        for item in buffer["items"]:
+            yield item
+
+        if not buffer["paging"]["next"]:
+            break
+
+        buffer = source(next = buffer["paging"]["next"])

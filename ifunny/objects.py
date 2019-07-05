@@ -1,8 +1,8 @@
 import json, time, random, requests
-from ifunny.utils import determine_mime, invalid_type, paginated_data, paginated_params
+from ifunny.utils import determine_mime, invalid_type, format_paginated, paginated_data, paginated_generator
 
 class ObjectBase:
-    def __init__(self, id, client, data = None, update_interval = 30):
+    def __init__(self, id, client, data = None, post = None, root = None, update_interval = 30):
         self.client = client
         self.id = id
 
@@ -11,14 +11,16 @@ class ObjectBase:
         self._update_interval = update_interval
 
         self._url = None
+        self._post = post
+        self._root = root
 
     def _get_prop(self, key):
         if not self._account_data.get(key, None):
             self._updated = 0
 
-        return self._account_data[key]
+        return self._account_data.get(key, None)
 
-    def _update(self):
+    def _flush_cache(self):
         self._account_data_payload = None
 
     @property
@@ -32,55 +34,50 @@ class ObjectBase:
 class User(ObjectBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._chat_url = None
         self._url = f"{self.client.api}/users/{self.id}"
 
     def __repr__(self):
         return self.nick
 
+    def __eq__(self, other):
+        return self.id == other
+
     # public methods
 
-    def timeline(self, limit = 25, prev = None, next = None):
-        params = paginated_params(limit, prev, next)
+    # paginated data
 
-        response = requests.get(f"{self.client.api}/timelines/users/{self.id}", headers = self.client.headers, params = params)
-
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-        data = response.json()["data"]["content"]
+    def timeline_paginated(self, limit = 25, prev = None, next = None):
+        data = paginated_data(
+            f"{self.client.api}/timelines/users/{self.id}", "content", self.client.headers,
+            limit = limit, prev = prev, next = next
+        )
 
         items = [Post(item["id"], self.client, data = item) for item in data["items"]]
 
-        return paginated_data(data, items)
+        return format_paginated(data, items)
 
-    def subscribers(self, limit = 25, prev = None, next = None):
-        params = paginated_params(limit, prev, next)
-
-        response = requests.get(f"{self._url}/subscribers", headers = self.client.headers, params = params)
-
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-        data = response.json()["data"]["users"]
-
+    def subscribers_paginated(self, limit = 25, prev = None, next = None):
+        data = paginated_data(
+            f"{self._url}/subscribers", "users", self.client.headers,
+            limit = limit, prev = prev, next = next
+        )
 
         items = [User(item["id"], self.client, data = item) for item in data["items"]]
 
-        return paginated_data(data, items)
+        return format_paginated(data, items)
 
-    def subscriptions(self, limit = 25, prev = None, next = None):
-        params = paginated_params(limit, prev, next)
-
-        response = requests.get(f"{self._url}/subscriptions", headers = self.client.headers, params = params)
-
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-        data = response.json()["data"]["users"]
+    def subscriptions_paginated(self, limit = 25, prev = None, next = None):
+        data = paginated_data(
+            f"{self._url}/subscriptions", "users", self.client.headers,
+            limit = limit, prev = prev, next = next
+        )
 
         items = [User(item["id"], self.client, data = item) for item in data["items"]]
 
-        return paginated_data(data, items)
+        return format_paginated(data, items)
+
+    # actions
 
     def subscribe(self):
         response = requests.put(f"{self._url}/subscribers", headers = self.client.headers)
@@ -150,6 +147,23 @@ class User(ObjectBase):
 
         return True
 
+    # public generators
+
+    @property
+    def timeline(self):
+        for i in paginated_generator(self.timeline_paginated):
+            yield i
+
+    @property
+    def subscribers(self):
+        for i in paginated_generator(self.subscribers_paginated):
+            yield i
+
+    @property
+    def subscriptions(self):
+        for i in paginated_generator(self.subscriptions_paginated):
+            yield i
+
     # public properties
 
     # authentication independant attributes
@@ -164,14 +178,17 @@ class User(ObjectBase):
 
     @property
     def posts(self):
+        self._flush_cache()
         return self._get_prop("num")["featured"]
 
     @property
     def featured(self):
+        self._flush_cache()
         return self._get_prop("num")["featured"]
 
     @property
-    def smiles(self):
+    def total_smiles(self):
+        self._flush_cache()
         return self._get_prop("num")["total_smiles"]
 
     @property
@@ -204,14 +221,24 @@ class User(ObjectBase):
 
     @property
     def nick_color(self):
-        try:
-            return self._get_prop("nick_color")
-        except KeyError:
-            return None
+        return self._get_prop("nick_color")
 
     @property
     def chat_privacy(self):
         return self._get_prop("messaging_privacy_status")
+
+    @property
+    def chat_url(self):
+        if not self._chat_url:
+            data = {
+                "chat_type": "chat",
+                "users": self.id
+            }
+
+            response = requests.post(f"{self.client.api}/chats", headers = self.client.headers, data = data)
+            self._chat_url = (response.url, data, response.text)
+
+        return self._chat_url
 
     # authentication dependant attributes
 
@@ -244,33 +271,48 @@ class Post(ObjectBase):
         super().__init__(*args, **kwargs)
         self._url = f"{self.client.api}/content/{self.id}"
 
-    def smiles(self, limit = 25, prev = None, next = None):
-        params = paginated_params(limit, prev, next)
+    def __eq__(self, other):
+        return self.id == other
 
-        response = requests.get(f"{self._url}/smiles", params = params, headers = self.client.headers)
+    # public methods
 
-        if response.status_code != 200:
-            raise Exception(response.text)
+    # paginated data
 
-        data = response.json()["data"]["users"]
+    def smiles_paginated(self, limit = 25, prev = None, next = None):
+        data = paginated_data(
+            f"{self._url}/smiles", "users", self.client.headers,
+            limit = limit, prev = prev, next = next
+        )
 
         items = [User(item["id"], self.client, data = item) for item in data["items"]]
 
-        return paginated_data(data, items)
+        return format_paginated(data, items)
 
-    def comments(self, limit = 25, prev = None, next = None):
-        params = paginated_params(limit, prev, next)
+    def comments_paginated(self, limit = 25, prev = None, next = None):
+        data = paginated_data(
+            f"{self._url}/comments", "comments", self.client.headers,
+            limit = limit, prev = prev, next = next
+        )
 
-        response = requests.get(f"{self._url}/comments", params = params, headers = self.client.headers)
+        items = [Comment(item["id"], self.client, data = item, post = self) for item in data["items"]]
 
-        if response.status_code != 200:
-            raise Exception(response.text)
+        return format_paginated(data, items)
 
-        data = response.json()["data"]["comments"]
+    # public generators
 
-        items = [Comment(item["id"], self.client, data = item) for item in data["items"]]
+    @property
+    def smiles(self):
+        for i in paginated_generator(self.smiles_paginated):
+            yield i
 
-        return paginated_data(data, items)
+    @property
+    def comments():
+        for i in paginated_generator(self.comments_paginated):
+            yield i
+
+    # public properties
+
+    # authentication independant attributes
 
     @property
     def smile_count(self):
@@ -305,10 +347,243 @@ class Post(ObjectBase):
         data = self._get_prop("creator")
         return User(data["id"], self.client, data = data)
 
+    @property
+    def source(self):
+        return self._get_prop("source")
+
+    @property
+    def is_original(self):
+        return self.source is None
+
+    @property
+    def is_feautured(self):
+        return self._get_prop("is_feautured")
+
+    @property
+    def is_pinned(self):
+        return self._get_prop("is_pinned")
+
+    @property
+    def is_abused(self):
+        return self._get_prop("is_abused")
+
+    @property
+    def type(self):
+        return self._get_prop("type")
+
+    @property
+    def tags(self):
+        return self._get_prop("tags")
+
+    @property
+    def visibility(self):
+        return self._get_prop("visibility")
+
+    @property
+    def state(self):
+        return self._get_prop("state")
+
+    @property
+    def boostable(self):
+        return self._get_prop("can_be_boosted")
+
+    @property
+    def created_at(self):
+        return self._get_prop("date_created")
+
+    @property
+    def published_at(self):
+        return self._get_prop("published_at")
+
+    @property
+    def content_url(self):
+        return self._get_prop("url")
+
+    @property
+    def content(self):
+        return requests.get(self.content_url).content
+
+    # authentication dependant attributes
+
+    @property
+    def is_republished(self):
+        return self._get_prop("is_republished")
+
+    @property
+    def smiled(self):
+        return self._get_prop("is_smiled")
+
+    @property
+    def unsmiled(self):
+        return self._get_prop("is_unsmiled")
 
 class Comment(ObjectBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        if self._post == None and self._account_data_payload["cid"] == None:
+            raise Exception("This needs a post")
+
+        self._url = f"{self.client.api}/content/{self.cid}/comments" if not self._root else f"{self.client.api}/content/{self.cid}/comments/{self._root}/replies"
+
+    def __repr__(self):
+        return self.content
+
+    def __eq__(self, other):
+        return self.id == other
+
+    @property
+    def _account_data(self):
+        if time.time() - self._updated > self._update_interval or self._account_data_payload is None:
+            self._updated = time.time()
+
+            params = {
+            "limit":    1,
+            "show":     self.id
+            }
+
+            key = "replies" if self._root else "comments"
+            post_comments = requests.get(self._url, headers = self.client.headers).json()["data"][key]["items"]
+            mine = [item for item in post_comments if item["id"] == self.id]
+
+            if not len(mine):
+                self._account_data_payload = {"is_deleted": True}
+            else:
+                self._account_data_payload = mine[0]
+
+        return self._account_data_payload
+
+    # public properties
+
+    def replies_paginated(self, limit = 25, prev = None, next = None):
+        data = paginated_data(
+            f"{self._url}/{self.id}/replies", "replies", self.client.headers,
+            limit = limit, prev = prev, next = next
+        )
+
+        items = [Comment(item["id"], self.client, data = item, post = self.cid, root = self.id) for item in data["items"]]
+
+        return format_paginated(data, items)
+
+    # public generators
+
+    @property
+    def replies(self):
+        for i in paginated_generator(self.replies_paginated):
+            yield i
+
+    # public properties
+
+    # authentication independant properties
+
+    @property
+    def content(self):
+        value = self._get_prop("text")
+        return value if value else ""
+
+    @property
+    def cid(self):
+        if type(self._post) is str:
+            self._post = Post(self._post, self.client)
+
+        if self._post:
+            return self._post.id
+
+        if not self.__cid:
+            self.__cid = self._get_prop("cid")
+
+        return self.__cid
+
+    @property
+    def state(self):
+        return self._get_prop("state")
+
+    @property
+    def author(self):
+        data = self._get_prop("user")
+        return User(data["id"], self.client, data = data)
+
+    @property
+    def post(self):
+        return Post(self.cid, self.client)
+
+    @property
+    def root(self):
+        if self.is_root:
+            return None
+
+        return Comment(self._get_prop("root_comm_id"), self.client, post = self.cid)
+
+    @property
+    def root(self):
+        if self.is_root:
+            return None
+
+        return Comment(self._get_prop("root_comm_id"), self.client, post = self.cid)
+
+    @property
+    def smile_count(self):
+        return self._get_prop("num")["smiles"]
+
+    @property
+    def unsmile_count(self):
+        return self._get_prop("num")["unsmiles"]
+
+    @property
+    def reply_count(self):
+        return self._get_prop("num")["replies"]
+
+    @property
+    def created_at(self):
+        self._get_prop("date")
+
+    @property
+    def depth(self):
+        if self.is_root:
+            return 0
+
+        return self._get_prop("depth")
+
+    @property
+    def is_root(self):
+        return not self._get_prop("is_reply")
+
+    @property
+    def is_deleted(self):
+        value = self._get_prop("is_deleted")
+        return value if value else False
+
+    @property
+    def is_edited(self):
+        return self._get_prop("is_edited")
+
+    @property
+    def attached_post(self):
+        data = self._get_prop("attachments")["content"]
+
+        if len(data) == 0:
+            return None
+
+        return Post(data[0]["id"], self.client, data = data[0])
+
+    @property
+    def mentioned_users(self):
+        data = self._get_prop("attachments")["mention_user"]
+
+        if len(data) == 0:
+            return []
+
+        return [User(item["user_id"], self.client) for item in data]
+
+    # authentication dependant properties
+
+    @property
+    def is_smiled(self):
+        return self._get_prop("is_smiled")
+
+    @property
+    def is_unsmiled(self):
+        return self._get_prop("is_unsmiled")
 
 class ChatChannel:
     def __init__(self, data, client):

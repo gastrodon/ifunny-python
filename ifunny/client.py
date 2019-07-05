@@ -1,27 +1,28 @@
-import json, os, requests, threading
+import json, os, requests, threading, time
 
 from random import random
 from hashlib import sha1
 from base64 import b64encode
-from time import time, sleep
 
 from ifunny.handler import Handler
 from ifunny.commands import Command, Defaults
 from ifunny.sendbird import Socket
-from ifunny.notifications import resolve_notification
+from ifunny.notifications import Notification
 from ifunny.objects import User
+from ifunny.utils import format_paginated, paginated_data, paginated_generator
 
 class Client:
     api = "https://api.ifunny.mobi/v4"
     sendbird_api = "https://api-us-1.sendbird.com/v3"
     __client_id = "MsOIJ39Q28"
     __client_secret = "PTDc3H8a)Vi=UYap"
+    __user_agent = "iFunny/5.36(17704) Android/5.0.2 (samsung; SCH-R530U; samsung)"
 
     commands = {
         "help" : Defaults.help
     }
 
-    def __init__(self, handler = Handler(), socket = Socket(), trace = False, prefix = ""):
+    def __init__(self, handler = Handler(), socket = Socket(), trace = False, prefix = "", update_interval = 30):
 
         # command
         self.__prefix = prefix
@@ -38,7 +39,7 @@ class Client:
         # sendbird api info
         self.sendbird_session_key = None
         self.__messenger_token = None
-        self.__sendbird_req_id = int(time() * 1000 + random() * 1000000)
+        self.__sendbird_req_id = int(time.time() * 1000 + random() * 1000000)
 
         # attatched objects
         handler.client = self
@@ -48,7 +49,11 @@ class Client:
         self.socket = socket
         self.socket_trace = trace
 
+        # own profile data
         self.__user = None
+        self._account_data_payload = None
+        self._updated = 0
+        self._update_interval = update_interval
 
         # cache file
         self.__cache_path = f"{os.path.dirname(os.path.realpath(__file__))}/ifunny_config.json"
@@ -63,6 +68,22 @@ class Client:
 
     def __repr__(self):
         return self.user.nick
+
+    # private methods
+
+    def __update_config(self):
+        self.__config_lock.acquire()
+
+        with open(self.__cache_path, "w") as stream:
+            json.dump(self.__config, stream)
+
+        self.__config_lock.release()
+
+    def _get_prop(self, key):
+        if not self.__account_data.get(key, None):
+            self._updated = 0
+
+        return self.__account_data.get(key, None)
 
     # private properties
 
@@ -92,118 +113,27 @@ class Client:
 
     @property
     def __account_data(self):
-        return requests.get(f"{self.api}/account", headers = self.headers).json()["data"]
+        if time.time() - self._updated > self._update_interval or self._account_data_payload is None:
+            self._updated = time.time()
+            self._account_data_payload = requests.get(f"{self.api}/account", headers = self.headers).json()["data"]
 
-    # public properties
-
-    @property
-    def headers(self):
-        _headers = {}
-
-        if self.__token:
-            _headers["Authorization"] = f"Bearer {self.__token}"
-
-            return _headers
-
-    @property
-    def prefix(self):
-        if callable(self.__prefix):
-            return self.__prefix()
-
-        if isinstance(self.__prefix, str):
-            return self.__prefix
-
-        raise Exception(f"prefix must be callable or str, not {type(self.__prefix)}")
-
-    @property
-    def messenger_token(self):
-        if not self.__messenger_token:
-            self.__messenger_token = self.__account_data["messenger_token"]
-
-        return self.__messenger_token
-
-    @property
-    def unread_notifications(self):
-        unread = []
-        page_next = None
-
-        response = requests.get(f"{self.api}/counters", headers = self.headers)
-
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-        count = response.json()["data"]["news"]
-
-        if not count:
-            return unread
-
-        while len(unread) < count:
-            fetched = self.get_notifications(next = page_next)
-            unread = [*unread, *fetched["items"]]
-            page_next = fetched["paging"]["next"]
-
-            if not page_next:
-                break
-
-        return unread[:count]
-
-    @property
-    def next_req_id(self):
-        self.__sendbird_lock.acquire()
-        self.__sendbird__req_id += 1
-        self.__sendbird_lock.release()
-        return self.__sendbird_req_id
-
-    @property
-    def user(self):
-        if not self.__user:
-            self.__user = User(self.id, self)
-
-        return self.__user
-
-    # private methods
-
-    def __update_config(self):
-        self.__config_lock.acquire()
-        with open(self.__cache_path, "w") as stream:
-            json.dump(self.__config, stream)
-        self.__config_lock.release()
+        return self._account_data_payload
 
     # public methods
 
-    def get_notifications(self, limit = 30, types = None, prev = None, next = None):
-        params = {
-            "limit" : limit
-        }
+    def notifications_paginated(self, limit = 30, types = None, prev = None, next = None):
+        data = paginated_data(
+            f"{self.api}/news/my", "news", self.headers,
+            limit = limit, prev = prev, next = next
+        )
 
-        if next:
-            params["next"] = next
+        items = [Notification(item, self) for item in data["items"]]
 
-        elif prev:
-            params["prev"] = prev
+        return format_paginated(data, items)
 
-        response = requests.get(f"{self.api}/news/my", headers = self.headers, params = params)
+    def login(self, email, password, force = False, *args, **kwargs):
+        self.__init__(*args, **kwargs)
 
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-        parsed = response.json()["data"]["news"]
-        items = [resolve_notification(self, item) for item in parsed["items"]]
-
-        if types:
-            items = [item for item in items if item.type in types]
-
-        paging = {
-            "prev": parsed["paging"]["cursors"]["prev"] if parsed["paging"]["hasPrev"] else None,
-            "next": parsed["paging"]["cursors"]["next"] if parsed["paging"]["hasNext"] else None
-        }
-
-        return {
-            "items": items,
-            "paging": paging
-        }
-
-    def login(self, email, password, force = False):
         if not force and self.__config.get(f"{email}_token"):
             self.__token = self.__config[f"{email}_token"]
             response = requests.get(f"{self.api}/account", headers = self.headers)
@@ -225,7 +155,7 @@ class Client:
         response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
 
         if response.status_code == 403:
-            sleep(10)
+            time.sleep(10)
             response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
 
         if response.status_code != 200:
@@ -261,6 +191,60 @@ class Client:
         cmd = self.commands.get(first[len(self.prefix):], Defaults.default)
         cmd.execute(ctx, args)
 
+    # public properties
+
+    @property
+    def headers(self):
+        _headers = {
+            "User-Agent": self.__user_agent
+        }
+
+        if self.__token:
+            _headers["Authorization"] = f"Bearer {self.__token}"
+
+        return _headers
+
+    @property
+    def prefix(self):
+        if callable(self.__prefix):
+            return self.__prefix()
+
+        if isinstance(self.__prefix, str):
+            return self.__prefix
+
+            raise Exception(f"prefix must be callable or str, not {type(self.__prefix)}")
+
+    @property
+    def messenger_token(self):
+        if not self.__messenger_token:
+            self.__messenger_token = self.__account_data["messenger_token"]
+
+        return self.__messenger_token
+
+    @property
+    def unread_notifications(self):
+        unread = []
+        generator = self.notifications
+
+        for _ in range(self.unread_notifications_count):
+            unread.append(next(generator))
+
+        return unread
+
+    @property
+    def next_req_id(self):
+        self.__sendbird_lock.acquire()
+        self.__sendbird__req_id += 1
+        self.__sendbird_lock.release()
+        return self.__sendbird_req_id
+
+    @property
+    def user(self):
+        if not self.__user :
+            self.__user = User(self.id, self)
+
+        return self.__user
+
     # public decorators
 
     def command(self, name = None):
@@ -269,6 +253,13 @@ class Client:
             self.commands[_name] = Command(method, _name)
 
         return _inner
+
+    # public generators
+
+    @property
+    def notifications(self):
+        for i in paginated_generator(self.notifications_paginated):
+            yield i
 
     # sendbird methods
 
@@ -299,16 +290,21 @@ class Client:
     # account info properties
 
     @property
+    def unread_notifications_count(self):
+        print("called")
+        return requests.get(f"{self.api}/counters", headers = self.headers).json()["data"]["news"]
+
+    @property
     def nick(self):
-        return self.user.nick
+        return self._get_prop("nick")
 
     @property
     def email(self):
-        return self.__account_data["email"]
+        return self._get_prop("email")
 
     @property
     def id(self):
         if not self.__id:
-            self.__id = self.__account_data["id"]
+            self.__id = self._get_prop("id")
 
         return self.__id

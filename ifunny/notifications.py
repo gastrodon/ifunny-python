@@ -3,49 +3,51 @@ from ifunny.objects import User, Post, Comment
 
 class Notification:
     def __init__(self, data, client):
-        self.type = data["type"]
         self.client = client
-        self.timestamp = data["date"]
+        self.type = data["type"]
 
         self.__data = data
-        self.__user = None
-        self.__content = None
-        self.__comment = None
 
     @property
     def user(self):
-        if not self.__user and "user" in self.__data:
-            self.__user = User(self.__data["user"], self.client)
+        data = self.__data.get("user")
 
-        return self.__creator
+        if not data:
+            return None
+
+        return User(data["id"], self.client, data = data)
 
     @property
-    def content(self):
-        if not self.__content and "content" in self.__data:
-            self.__content = Post(self.__data["creator"], self.client)
+    def post(self):
+        data = self.__data.get("content")
 
-        return self.__comment
+        if not data:
+            return None
+
+        return Post(data["id"], self.client, data = data)
 
     @property
     def comment(self):
-        if not self.__comment and "comment" in self.__data:
-            self.__comment = Comment(self.__data["comment"], self.client)
+        if self.type == "reply_for_comment":
+            data = self.__data.get("reply")
+        else:
+            data = self.__data.get("comment")
 
-        return self.__comment
+        if not data:
+            return None
 
-class CommentNotification(Notification):
-    def __init__(self, data, client):
-        super().__init__(data, client)
+        post = self.__data["content"]["id"]
 
-        self.id = data["comment"]["id"]
-        self.cid = data["comment"]["cid"]
-        self.is_reply = data["comment"]["is_reply"]
-        self.smiles = data["comment"]["num"]["smiles"]
+        if self.type == "reply_for_comment":
+            root = self.__data["comment"]["id"]
+            return Comment(data["id"], self.client, data = data, post = post, root = root)
 
+        return Comment(data["id"], self.client, data = data, post = post)
 
-_match = {
-    "comment": CommentNotification
-}
+    @property
+    def created_at(self):
+        return self.__data.get("date")
 
-def resolve_notification(data, client):
-    return _match.get(data["type"], Notification)(data, client)
+    @property
+    def smile_count(self):
+        return self.__data.get("smiles")
