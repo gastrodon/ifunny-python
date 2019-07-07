@@ -6,6 +6,7 @@
 Welcome to iFunny's documentation!
 ==================================
 
+
 Requirements:
     - requests
     - websocket-client

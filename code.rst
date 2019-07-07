@@ -6,10 +6,10 @@ client
     :undoc-members:
     :exclude-members: api, sendbird_api, commands
 
-objects
-=======
+notifications
+=============
 
-.. automodule:: ifunny.objects
+.. automodule:: ifunny.notifications
     :members:
     :undoc-members:
     :exclude-members: Channel, MessageContext
