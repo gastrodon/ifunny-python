@@ -2,17 +2,18 @@ import json, time, random, requests
 from ifunny.utils import determine_mime, invalid_type, format_paginated, paginated_data, paginated_generator
 
 class ObjectBase:
-    def __init__(self, id, client, data = None, post = None, root = None, update_interval = 30):
+    def __init__(self, id, client, data = None, post = None, root = None, paginated_size = 30):
         self.client = client
         self.id = id
 
         self._account_data_payload = data
         self._update = data is None
-        self._update_interval = update_interval
 
         self._url = None
         self._post = post
         self._root = root
+
+        self.paginated_size = paginated_size
 
     def _get_prop(self, key, force = False):
         if not self._account_data.get(key, None) or force:
@@ -27,7 +28,14 @@ class ObjectBase:
     def _account_data(self):
         if self._update or self._account_data_payload is None:
             self._update = False
-            self._account_data_payload = requests.get(self._url, headers = self.client.headers).json()["data"]
+            response = requests.get(self._url, headers = self.client.headers)
+            if response.status_code == 403:
+                self._account_data_payload = {}
+                return self._account_data_payload
+            try:
+                self._account_data_payload = response.json()["data"]
+            except KeyError:
+                raise Exception(response.text)
 
         return self._account_data_payload
 
@@ -52,7 +60,10 @@ class User(ObjectBase):
 
     # paginated data
 
-    def timeline_paginated(self, limit = 25, prev = None, next = None):
+    def timeline_paginated(self, limit = None, prev = None, next = None):
+        limit = limit if limit else self.paginated_size
+        limit = min(100, limit)
+
         data = paginated_data(
             f"{self.client.api}/timelines/users/{self.id}", "content", self.client.headers,
             limit = limit, prev = prev, next = next
@@ -62,7 +73,9 @@ class User(ObjectBase):
 
         return format_paginated(data, items)
 
-    def subscribers_paginated(self, limit = 25, prev = None, next = None):
+    def subscribers_paginated(self, limit = None, prev = None, next = None):
+        limit = limit if limit else self.paginated_size
+
         data = paginated_data(
             f"{self._url}/subscribers", "users", self.client.headers,
             limit = limit, prev = prev, next = next
@@ -72,7 +85,9 @@ class User(ObjectBase):
 
         return format_paginated(data, items)
 
-    def subscriptions_paginated(self, limit = 25, prev = None, next = None):
+    def subscriptions_paginated(self, limit = None, prev = None, next = None):
+        limit = limit if limit else self.paginated_size
+
         data = paginated_data(
             f"{self._url}/subscriptions", "users", self.client.headers,
             limit = limit, prev = prev, next = next
@@ -283,7 +298,9 @@ class Post(ObjectBase):
 
     # paginated data
 
-    def smiles_paginated(self, limit = 25, prev = None, next = None):
+    def _smiles_paginated(self, limit = None, prev = None, next = None):
+        limit = limit if limit else self.paginated_size
+
         data = paginated_data(
             f"{self._url}/smiles", "users", self.client.headers,
             limit = limit, prev = prev, next = next
@@ -293,7 +310,9 @@ class Post(ObjectBase):
 
         return format_paginated(data, items)
 
-    def comments_paginated(self, limit = 25, prev = None, next = None):
+    def _comments_paginated(self, limit = None, prev = None, next = None):
+        limit = limit if limit else self.paginated_size
+
         data = paginated_data(
             f"{self._url}/comments", "comments", self.client.headers,
             limit = limit, prev = prev, next = next
@@ -307,13 +326,11 @@ class Post(ObjectBase):
 
     @property
     def smiles(self):
-        for i in paginated_generator(self.smiles_paginated):
-            yield i
+        return paginated_generator(self._smiles_paginated)
 
     @property
     def comments(self):
-        for i in paginated_generator(self.comments_paginated):
-            yield i
+        return paginated_generator(self._comments_paginated)
 
     # public properties
 
@@ -361,8 +378,8 @@ class Post(ObjectBase):
         return self.source is None
 
     @property
-    def is_feautured(self):
-        return self._get_prop("is_feautured")
+    def is_featured(self):
+        return self._get_prop("is_featured")
 
     @property
     def is_pinned(self):
@@ -458,9 +475,9 @@ class Comment(ObjectBase):
 
         return self._account_data_payload
 
-    # public properties
+    def _replies_paginated(self, limit = None, prev = None, next = None):
+        limit = limit if limit else self.paginated_size
 
-    def replies_paginated(self, limit = 25, prev = None, next = None):
         data = paginated_data(
             f"{self._url}/{self.id}/replies", "replies", self.client.headers,
             limit = limit, prev = prev, next = next
@@ -470,12 +487,18 @@ class Comment(ObjectBase):
 
         return format_paginated(data, items)
 
+    # public methods
+
+    def delete(self):
+        response = requests.delete(f"{self._url}/{self.id}", headers = self.client.headers)
+
+        return response
+
     # public generators
 
     @property
     def replies(self):
-        for i in paginated_generator(self.replies_paginated):
-            yield i
+        return paginated_generator(self._replies_paginated)
 
     # public properties
 
@@ -622,7 +645,6 @@ class MessageContext:
         }
 
         return self.socket.send(f"MESG{json.dumps(response_data, separators = (',', ':'))}\n")
-
 
     def send_file_url(self, image_url, width = 780, height = 780):
         lower_ratio = min([width / height, height / width])

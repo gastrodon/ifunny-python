@@ -19,11 +19,13 @@ class Client:
     :param socket: Websocket manager handling the chat connection
     :param trace: Trace boolean to send to the socket object
     :param prefix: Static string or callable prefix for chat commands
+    :param paginated_size: Number of items to request in paginated methods
 
     :type handler: ifunny.handler.Handler
     :type socket: ifunny.sendbird.Socket
     :type trace: bool
     :type prefix: str or callable
+    :type paginated_size: int
     """
     api = "https://api.ifunny.mobi/v4"
     sendbird_api = "https://api-us-1.sendbird.com/v3"
@@ -35,7 +37,7 @@ class Client:
         "help" : Defaults.help
     }
 
-    def __init__(self, handler = Handler(), socket= Socket(), trace = False, prefix = ""):
+    def __init__(self, handler = Handler(), socket= Socket(), trace = False, prefix = "", paginated_size = 25):
         # command
         self.__prefix = prefix
 
@@ -54,6 +56,8 @@ class Client:
         self.__sendbird_req_id = int(time.time() * 1000 + random() * 1000000)
 
         # attatched objects
+        self.paginated_size = paginated_size
+
         handler.client = self
         self.handler = handler
 
@@ -406,7 +410,7 @@ class Client:
         :returns: this client's user object
         """
         if not self.__user :
-            self.__user = User(self.id, self)
+            self.__user = User(self.id, self, paginated_size = self.paginated_size)
 
         return self.__user
 
