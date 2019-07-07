@@ -56,3 +56,5 @@ autodoc_member_order = 'bysource'
 MOCK_MODULES = ['random']
 for module in MOCK_MODULES:
     sys.modules[module] = mock.Mock()
+
+master_doc = 'index'
