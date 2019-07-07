@@ -12,6 +12,19 @@ from ifunny.objects import User
 from ifunny.utils import format_paginated, paginated_data, paginated_generator
 
 class Client:
+    """
+    iFunny client used to do most things.
+
+    :param handler: Websocket event handler
+    :param socket: Websocket manager handling the chat connection
+    :param trace: Trace boolean to send to the socket object
+    :param prefix: Static string or callable prefix for chat commands
+
+    :type handler: ifunny.handler.Handler
+    :type socket: ifunny.sendbird.Socket
+    :type trace: bool
+    :type prefix: str or callable
+    """
     api = "https://api.ifunny.mobi/v4"
     sendbird_api = "https://api-us-1.sendbird.com/v3"
     __client_id = "MsOIJ39Q28"
@@ -22,8 +35,7 @@ class Client:
         "help" : Defaults.help
     }
 
-    def __init__(self, handler = Handler(), socket = Socket(), trace = False, prefix = "", update_interval = 30):
-
+    def __init__(self, handler = Handler(), socket= Socket(), trace = False, prefix = ""):
         # command
         self.__prefix = prefix
 
@@ -52,8 +64,7 @@ class Client:
         # own profile data
         self.__user = None
         self._account_data_payload = None
-        self._updated = 0
-        self._update_interval = update_interval
+        self._update = False
 
         # cache file
         self.__cache_path = f"{os.path.dirname(os.path.realpath(__file__))}/ifunny_config.json"
@@ -72,6 +83,9 @@ class Client:
     # private methods
 
     def __update_config(self):
+        """
+        Update the config file with the internal config dict in a thread safe way
+        """
         self.__config_lock.acquire()
 
         with open(self.__cache_path, "w") as stream:
@@ -79,16 +93,32 @@ class Client:
 
         self.__config_lock.release()
 
-    def _get_prop(self, key):
-        if not self.__account_data.get(key, None):
-            self._updated = 0
+    def _get_prop(self, key: str, force: bool = False):
+        if not self.__account_data.get(key, None) or force:
+            self._update = True
 
         return self.__account_data.get(key, None)
+
+    def _notifications_paginated(self, limit: int = 30, prev: str = None, next: str = None):
+        data = paginated_data(
+            f"{self.api}/news/my", "news", self.headers,
+            limit = limit, prev = prev, next = next
+        )
+
+        items = [Notification(item, self) for item in data["items"]]
+
+        return format_paginated(data, items)
 
     # private properties
 
     @property
     def __sendbird_headers(self):
+        """
+        Generate headers for a sendbird api call
+
+        returns
+            dict
+        """
         _headers = {}
 
         if self.socket.connected:
@@ -98,6 +128,12 @@ class Client:
 
     @property
     def __login_token(self):
+        """
+        Generate or load from config a Basic auth token
+
+        returns
+            string
+        """
         if self.__config.get("login_token"):
             return self.__config["login_token"]
 
@@ -113,26 +149,36 @@ class Client:
 
     @property
     def __account_data(self):
-        if time.time() - self._updated > self._update_interval or self._account_data_payload is None:
-            self._updated = time.time()
+        """
+        Get existing or request new account data
+
+        returns
+            dict
+        """
+        if self._update or self._account_data_payload is None:
+            self._update = False
             self._account_data_payload = requests.get(f"{self.api}/account", headers = self.headers).json()["data"]
 
         return self._account_data_payload
 
     # public methods
 
-    def notifications_paginated(self, limit = 30, types = None, prev = None, next = None):
-        data = paginated_data(
-            f"{self.api}/news/my", "news", self.headers,
-            limit = limit, prev = prev, next = next
-        )
+    def login(self, email, password, force = False):
+        """
+        Authenticate with iFunny to get an API token.
+        Will try to load saved account tokens (saved as plaintext json, indexed by `email_token`) if `force` is False
 
-        items = [Notification(item, self) for item in data["items"]]
+        :param email: Email associated with the account
+        :param password: Password associated with the account
+        :param force: True to ignore saved Bearer tokens
 
-        return format_paginated(data, items)
+        :type email: str
+        :type password: str
+        :type force: bool
+        """
 
-    def login(self, email, password, force = False, *args, **kwargs):
-        self.__init__(*args, **kwargs)
+        if self.authenticated:
+            raise Exception(f"Already logged in as {self.nick}")
 
         if not force and self.__config.get(f"{email}_token"):
             self.__token = self.__config[f"{email}_token"]
@@ -167,7 +213,20 @@ class Client:
 
         self.__update_config()
 
-    def post_image(self, image_data, tags = [], visibility = "public"):
+    def post_image(self, image_data: bytes, tags: list = [], visibility: str = "public"):
+        """
+        Post an image to iFunny
+
+        :param image_data: Binary image to post
+        :param tags: List of searchable tags
+        :param visibility: Visibility of the post on iFunny
+
+        :type image_data: bytes
+        :type tags: list<str>
+        :type visibility: str
+
+        :returns: True if successfuly posted (POST response is 202) else False
+        """
         data = {
             "type": "pic",
             "tags": json.dumps(tags),
@@ -179,9 +238,16 @@ class Client:
         }
 
         response = requests.post(f"{self.api}/content", headers = self.headers, data = data, files = files)
-        return response.status_code
+        return response.status_code == 202
 
     def resolve_command(self, ctx):
+        """
+        Find and call a command called from a message
+
+        :param ctx: Message content
+
+        :type ctx: ifunny.objects.MessageContext
+        """
         parsed = ctx.message.split(" ")
         first, args = parsed[0], parsed[1:]
 
@@ -189,12 +255,87 @@ class Client:
             return
 
         cmd = self.commands.get(first[len(self.prefix):], Defaults.default)
-        cmd.execute(ctx, args)
+        cmd(ctx, args)
+
+    # sendbird methods
+
+    def start_chat(self):
+        """
+        Start the chat websocket connection
+
+        :returns: this client's socket object
+
+        :raises: Exception stating that the socket is already alive
+        """
+        if self.socket.active:
+            raise Exception("Already started")
+
+        if not self.messenger_token:
+            self.messenger_token = self.__account_data["messenger_token"]
+
+        return self.socket.start()
+
+    def sendbird_upload(self, channel, file_data):
+        """
+        Upload an image to sendbird for a specific channel
+
+        :param channel: channel to upload the file for
+        :param file_data: binary file to upload
+
+        :type channel: ifunny.objects.Channel
+        :type file_data: bytes
+        """
+        files = {
+            "file": file_data
+        }
+
+        data = {
+            "thumbnail1"    : "780, 780",
+            "thumbnail2"    : "320,320",
+            "channel_url"   : channel.url
+        }
+
+        response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.__sendbird_headers, files = files, data = data)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        return response.json()["url"]
+
+    # public decorators
+
+    def command(self, name = None):
+        """
+        Decorator to add a command, callable in chat with the format ``{prefix}{command}``
+        Commands must take the arguments ``ctx`` and ``args``, which are set as the MessageContext and list<str> of space-separated words in the message (excluding the command) respectively::
+
+            import ifunny
+            robot = ifunny.Client()
+
+            @robot.command()
+            def some_command(ctx, args):
+                # do something
+                pass
+
+        :param name: Name of the command callable from chat. If None, the name of the function will be used instead.
+
+        :type name: str
+        """
+        def _inner(method):
+            _name = name if name else method.__name__
+            self.commands[_name] = Command(method, _name)
+
+        return _inner
 
     # public properties
 
     @property
     def headers(self):
+        """
+        Generate headers for iFunny requests dependant on authentication
+
+        :returns: (dict) request-ready headers
+        """
         _headers = {
             "User-Agent": self.__user_agent
         }
@@ -206,16 +347,27 @@ class Client:
 
     @property
     def prefix(self):
+        """
+        Get str representation of a prefix
+
+        :returns: str with a prefix that can be used to resolve commands
+        """
         if callable(self.__prefix):
             return self.__prefix()
 
         if isinstance(self.__prefix, str):
             return self.__prefix
 
-            raise Exception(f"prefix must be callable or str, not {type(self.__prefix)}")
+        raise Exception(f"prefix must be callable or str, not {type(self.__prefix)}")
 
     @property
     def messenger_token(self):
+        """
+        Get the messenger_token used for sendbird api calls
+        If a value is not stored in self.__messenger_token, one will be fetched from the client account data and stored
+
+        :returns: (str) messenger_token
+        """
         if not self.__messenger_token:
             self.__messenger_token = self.__account_data["messenger_token"]
 
@@ -223,6 +375,11 @@ class Client:
 
     @property
     def unread_notifications(self):
+        """
+        Get all unread notifications (notifications that have not been recieved from a GET) and return them in a list
+
+        :returns: list<ifunny.notifications.Notification> of unread notifications
+        """
         unread = []
         generator = self.notifications
 
@@ -233,6 +390,11 @@ class Client:
 
     @property
     def next_req_id(self):
+        """
+        Generate a new (sequential) sendbird websocket req_id in a thread safe way
+
+        :returns: (str) req_id
+        """
         self.__sendbird_lock.acquire()
         self.__sendbird__req_id += 1
         self.__sendbird_lock.release()
@@ -240,71 +402,63 @@ class Client:
 
     @property
     def user(self):
+        """
+        :returns: this client's user object
+        """
         if not self.__user :
             self.__user = User(self.id, self)
 
         return self.__user
 
-    # public decorators
+    @property
+    def unread_notifications_count(self):
+        """
+        :returns: (int) number of unread notifications
+        """
+        return requests.get(f"{self.api}/counters", headers = self.headers).json()["data"]["news"]
 
-    def command(self, name = None):
-        def _inner(method):
-            _name = name if name else method.__name__
-            self.commands[_name] = Command(method, _name)
+    @property
+    def nick(self):
+        """
+        :returns: (str) this client's username (``nick``\ name)
+        """
+        return self._get_prop("nick")
 
-        return _inner
+    @property
+    def email(self):
+        """
+        :returns: (str) this client's associated email
+        """
+        return self._get_prop("email")
+
+    @property
+    def id(self):
+        """
+        :returns: (str) this client's unique id
+        """
+        if not self.__id:
+            self.__id = self._get_prop("id")
+
+        return self.__id
+
+    @property
+    def fresh(self):
+        """
+        Sets the update flag for this client, and returns it. Useful for when new information is pertanent
+
+        :returns: (ifunny.client.Client) self
+        """
+        self._update = True
+        return self
 
     # public generators
 
     @property
     def notifications(self):
-        for i in paginated_generator(self.notifications_paginated):
-            yield i
+        """
+        Generator for a client's notifications.
+        Each iteration will return the next notification, in decending order of date recieved
 
-    # sendbird methods
-
-    def start_chat(self):
-        if not self.messenger_token:
-            self.messenger_token = self.__account_data["messenger_token"]
-
-        return self.socket.start()
-
-    def sendbird_upload(self, channel_url, file_data):
-        files = {
-            "file": file_data
-        }
-
-        data = {
-            "thumbnail1"    : "780, 780",
-            "thumbnail2"    : "320,320",
-            "channel_url"   : channel_url
-        }
-
-        response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.__sendbird_headers, files = files, data = data)
-
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-        return response.json()["url"]
-
-    # account info properties
-
-    @property
-    def unread_notifications_count(self):
-        print("called")
-        return requests.get(f"{self.api}/counters", headers = self.headers).json()["data"]["news"]
-
-    @property
-    def nick(self):
-        return self._get_prop("nick")
-
-    @property
-    def email(self):
-        return self._get_prop("email")
-
-    @property
-    def id(self):
-        if not self.__id:
-            self.__id = self._get_prop("id")
-
-        return self.__id
+        :returns: generator<ifunny.notifications.Notification
+        """
+        return paginated_generator(self._notifications_paginated)

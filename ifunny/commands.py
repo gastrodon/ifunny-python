@@ -18,7 +18,7 @@ class Command:
         self.name = name
         self.help = self.method.__doc__
 
-    def execute(self, ctx, args):
+    def __call__(self, ctx, args):
         return self.method(ctx, args)
 
 class Defaults:

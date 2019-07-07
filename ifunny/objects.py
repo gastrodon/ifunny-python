@@ -7,29 +7,34 @@ class ObjectBase:
         self.id = id
 
         self._account_data_payload = data
-        self._updated = time.time()
+        self._update = data is None
         self._update_interval = update_interval
 
         self._url = None
         self._post = post
         self._root = root
 
-    def _get_prop(self, key):
-        if not self._account_data.get(key, None):
-            self._updated = 0
+    def _get_prop(self, key, force = False):
+        if not self._account_data.get(key, None) or force:
+            self._update = True
 
         return self._account_data.get(key, None)
 
-    def _flush_cache(self):
-        self._account_data_payload = None
+    def update(self):
+        self._update = True
 
     @property
     def _account_data(self):
-        if time.time() - self._updated > self._update_interval or self._account_data_payload is None:
-            self._updated = time.time()
+        if self._update or self._account_data_payload is None:
+            self._update = False
             self._account_data_payload = requests.get(self._url, headers = self.client.headers).json()["data"]
 
         return self._account_data_payload
+
+    @property
+    def fresh(self):
+        self._update = True
+        return self
 
 class User(ObjectBase):
     def __init__(self, *args, **kwargs):
@@ -306,7 +311,7 @@ class Post(ObjectBase):
             yield i
 
     @property
-    def comments():
+    def comments(self):
         for i in paginated_generator(self.comments_paginated):
             yield i
 
@@ -343,7 +348,7 @@ class Post(ObjectBase):
         return self._get_prop("num")["shares"]
 
     @property
-    def creator(self):
+    def author(self):
         data = self._get_prop("creator")
         return User(data["id"], self.client, data = data)
 
@@ -434,8 +439,8 @@ class Comment(ObjectBase):
 
     @property
     def _account_data(self):
-        if time.time() - self._updated > self._update_interval or self._account_data_payload is None:
-            self._updated = time.time()
+        if self._update or self._account_data_payload is None:
+            self._update = False
 
             params = {
             "limit":    1,
@@ -585,16 +590,24 @@ class Comment(ObjectBase):
     def is_unsmiled(self):
         return self._get_prop("is_unsmiled")
 
-class ChatChannel:
+class Channel:
+    """
+    Sendbird messagable channel.
+    Docs in progress
+    """
     def __init__(self, data, client):
         self.client = client
         self.__data = data
 
-        self.sendbird_url = data["channel_url"]
+        self.url = data["channel_url"]
         self.id = data["channel_id"]
         self.type = data["channel_type"]
 
 class MessageContext:
+    """
+    Sendbird message context
+    Docs in progress
+    """
     def __init__(self, client, data):
         self.client = client
         self.socket = self.client.socket

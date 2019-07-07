@@ -3,3 +3,7 @@ ignore
 __py*
 venv*
 test.*
+
+_build
+_static
+_templates
