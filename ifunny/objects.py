@@ -1,8 +1,22 @@
 import json, time, random, requests
 from ifunny.utils import determine_mime, invalid_type, format_paginated, paginated_data, paginated_generator
 
-class ObjectBase:
-    def __init__(self, id, client, data = None, post = None, root = None, paginated_size = 30):
+class ObjectMixin:
+    """
+    Mixin class for iFunny objects.
+    Used to implement common methods
+
+    :param id: id of the object
+    :param client: Client that the object belongs to
+    :param data: A data payload for the object to pull from before requests
+    :param paginated_size: number of items to get for each paginated request. If above the call type's maximum, that will be used instead
+
+    :type id: str
+    :type client: Client
+    :type data: dict
+    :type paginated_size: int
+    """
+    def __init__(self, id, client, data = None, paginated_size = 30):
         self.client = client
         self.id = id
 
@@ -10,19 +24,14 @@ class ObjectBase:
         self._update = data is None
 
         self._url = None
-        self._post = post
-        self._root = root
 
         self.paginated_size = paginated_size
 
-    def _get_prop(self, key, force = False):
+    def _get_prop(self, key, default = None, force = False):
         if not self._account_data.get(key, None) or force:
             self._update = True
 
-        return self._account_data.get(key, None)
-
-    def update(self):
-        self._update = True
+        return self._account_data.get(key, default)
 
     @property
     def _account_data(self):
@@ -41,10 +50,61 @@ class ObjectBase:
 
     @property
     def fresh(self):
+        """
+        Return self after setting the update flag
+
+        :returns: self
+        :rtype: Subclass of ObjectMixin
+        """
         self._update = True
         return self
 
-class User(ObjectBase):
+class CommentMixin(ObjectMixin):
+    """
+    Mixin class for iFunny comments objects.
+    Used to implement common methods, subclass to ObjectMixin
+
+    :param id: id of the object
+    :param client: Client that the object belongs to
+    :param data: A data payload for the object to pull from before requests
+    :param paginated_size: number of items to get for each paginated request. If above the call type's maximum, that will be used instead
+    :param post: post that the comment belongs to, if no  data payload supplied
+    :param root: if comment is a reply, the root comment
+
+    :type id: str
+    :type client: Client
+    :type data: dict
+    :type paginated_size: int
+    :type post: str or Post
+    :type root: str
+    """
+    def __init__(self, id, client, data = None, paginated_size = 30, post = None, root = None):
+        super().__init__(id, client, data = data, paginated_size = paginated_size)
+        self._post = post
+        self._root = root
+
+    @property
+    def _account_data(self):
+        if self._update or self._account_data_payload is None:
+            self._update = False
+
+            params = {
+            "limit":    1,
+            "show":     self.id
+            }
+
+            key = "replies" if self._root else "comments"
+            post_comments = requests.get(self._url, headers = self.client.headers).json()["data"][key]["items"]
+            mine = [item for item in post_comments if item["id"] == self.id]
+
+            if not len(mine):
+                self._account_data_payload = {"is_deleted": True}
+            else:
+                self._account_data_payload = mine[0]
+
+        return self._account_data_payload
+
+class User(ObjectMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._chat_url = None
@@ -60,7 +120,7 @@ class User(ObjectBase):
 
     # paginated data
 
-    def timeline_paginated(self, limit = None, prev = None, next = None):
+    def _timeline_paginated(self, limit = None, prev = None, next = None):
         limit = limit if limit else self.paginated_size
         limit = min(100, limit)
 
@@ -73,7 +133,7 @@ class User(ObjectBase):
 
         return format_paginated(data, items)
 
-    def subscribers_paginated(self, limit = None, prev = None, next = None):
+    def _subscribers_paginated(self, limit = None, prev = None, next = None):
         limit = limit if limit else self.paginated_size
 
         data = paginated_data(
@@ -85,7 +145,7 @@ class User(ObjectBase):
 
         return format_paginated(data, items)
 
-    def subscriptions_paginated(self, limit = None, prev = None, next = None):
+    def _subscriptions_paginated(self, limit = None, prev = None, next = None):
         limit = limit if limit else self.paginated_size
 
         data = paginated_data(
@@ -100,14 +160,26 @@ class User(ObjectBase):
     # actions
 
     def subscribe(self):
+        """
+        Subscribe to a user
+
+        :returns: self for chaining methods
+        :rtype: User
+        """
         response = requests.put(f"{self._url}/subscribers", headers = self.client.headers)
 
         if response.status_code != 200:
             raise Exception(response.text)
 
-        return True
+        return self
 
     def unsubscribe(self):
+        """
+        Unsubscribe from a user
+
+        :returns: self for chaining
+        :rtype: User
+        """
         response = requests.delete(f"{self._url}/subscribers", headers = self.client.headers)
 
         if response.status_code != 200:
@@ -116,6 +188,17 @@ class User(ObjectBase):
         return True
 
     def block(self, type = "user"):
+        """
+        Block a user, either by account or device
+
+        :param type: type of block. user blocks a user, installation blocks all users tied to a device
+
+        :type type: str
+
+        :returns: self for chaining
+
+        :rtype: User
+        """
         valid = ["user", "installation"]
 
         if type not in valid:
@@ -129,13 +212,19 @@ class User(ObjectBase):
 
         if response.status_code != 200:
             if response.json().get("error") == "already_blocked":
-                return False
+                return self
 
             raise Exception(response.text)
 
-        return True
+        return self
 
     def unblock(self):
+        """
+        Unblock a user
+
+        :returns: self for chaining
+        :rtype: User
+        """
         params = {
             "type": "user"
         }
@@ -151,6 +240,22 @@ class User(ObjectBase):
         return True
 
     def report(self, type):
+        """
+        Report a user
+
+        :param type: reason for report
+            hate   -> hate speech
+            nude   -> nudity
+            spam   -> spam posting
+            target -> targeted harrassment
+            harm   -> encouraging harm or violence
+
+        :type type: str
+
+        :returns: self for chaining
+
+        :rtype: User
+        """
         valid = ["hate", "nude", "spam", "target", "harm"]
 
         if type not in valid:
@@ -165,24 +270,36 @@ class User(ObjectBase):
         if response.status_code != 200:
             raise Exception(response.text)
 
-        return True
+        return self
 
     # public generators
 
     @property
     def timeline(self):
-        for i in paginated_generator(self.timeline_paginated):
-            yield i
+        """
+        :returns: Generator iterating user posts
+
+        :rtype: Generator<Post>
+        """
+        return paginated_generator(self._timeline_paginated)
 
     @property
     def subscribers(self):
-        for i in paginated_generator(self.subscribers_paginated):
-            yield i
+        """
+        :returns: Generator iterating user subscipbers
+
+        :rtype: Generator<User>
+        """
+        return paginated_generator(self._subscribers_paginated)
 
     @property
     def subscriptions(self):
-        for i in paginated_generator(self.subscriptions_paginated):
-            yield i
+        """
+        :returns: Generator iterating user subscriptions
+
+        :rtype: Generator<User>
+        """
+        return paginated_generator(self._subscriptions_paginated)
 
     # public properties
 
@@ -190,65 +307,122 @@ class User(ObjectBase):
 
     @property
     def nick(self):
+        """
+        :retunrs: this users nickname
+        :rtype: str
+        """
         return self._get_prop("nick")
 
     @property
     def about(self):
+        """
+        :retunrs: this users about section
+        :rtype: str
+        """
         return self._get_prop("about")
 
     @property
     def posts(self):
-        self._flush_cache()
+        """
+        :retunrs: this users post count
+        :rtype: int
+        """
         return self._get_prop("num")["featured"]
 
     @property
     def featured(self):
-        self._flush_cache()
+        """
+        :retunrs: this users feature count
+        :rtype: int
+        """
         return self._get_prop("num")["featured"]
 
     @property
     def total_smiles(self):
-        self._flush_cache()
+        """
+        :retunrs: this users smile count
+        :rtype: int
+        """
         return self._get_prop("num")["total_smiles"]
 
     @property
     def subscriber_count(self):
+        """
+        :retunrs: this users subscriber count
+        :rtype: int
+        """
         return self._get_prop("num")["subscribers"]
 
     @property
     def subscription_count(self):
+        """
+        :retunrs: this users subscruption count
+        :rtype: int
+        """
         return self._get_prop("num")["subscriptions"]
 
     @property
     def is_verified(self):
+        """
+        :retunrs: True if this user is verified
+        :rtype: bool
+        """
         return self._get_prop("is_verified")
 
     @property
     def is_banned(self):
+        """
+        :retunrs: True if this user is banned
+        :rtype: bool
+        """
         return self._get_prop("is_banned")
 
     @property
     def is_deleted(self):
+        """
+        :retunrs: True if this user is deleted
+        :rtype: bool
+        """
         return self._get_prop("is_deleted")
 
     @property
     def days(self):
+        """
+        :returns: this users active days count
+        :rtype: int
+        """
         return self._get_prop("meme_experience")["days"]
 
     @property
     def rank(self):
+        """
+        :retunrs: this users meme experience rank
+        :rtype: str
+        """
         return self._get_prop("meme_experience")["rank"]
 
     @property
     def nick_color(self):
+        """
+        :retunrs: this users nickname color
+        :rtype: str
+        """
         return self._get_prop("nick_color")
 
     @property
     def chat_privacy(self):
+        """
+        :retunrs: this users chat privacy settings (privacy, public, subscribers)
+        :rtype: str
+        """
         return self._get_prop("messaging_privacy_status")
 
     @property
     def chat_url(self):
+        """
+        :retunrs: this users chat url
+        :rtype: str
+        """
         if not self._chat_url:
             data = {
                 "chat_type": "chat",
@@ -264,29 +438,53 @@ class User(ObjectBase):
 
     @property
     def blocked(self):
+        """
+        :retunrs: True if this user is blocked the client
+        :rtype: bool
+        """
         return self._get_prop("is_blocked")
 
     @property
     def blocking_me(self):
+        """
+        :retunrs: True if this user is blocking the client
+        :rtype: bool
+        """
         return self._get_prop("are_you_blocked")
 
     @property
     def can_chat(self):
-        return self._get_prop("is_available_for_chat")
+        """
+        :retunrs: True if this user can chat with the client
+        :rtype: bool
+        """
+        return self._get_prop("is_available_for_chat", False)
 
     @property
-    def notification_updates(self):
-        return self._get_prop("is_subscribed_to_updates")
+    def subscribed_to_updates(self):
+        """
+        :retunrs: True if this user is subscribed to notification updates
+        :rtype: bool
+        """
+        return self._get_prop("is_subscribed_to_updates", False)
 
     @property
     def is_subscribed(self):
-        return self._get_prop("is_in_subscribers")
+        """
+        :retunrs: True if this user is subscribed to the client
+        :rtype: bool
+        """
+        return self._get_prop("is_in_subscribers", False)
 
     @property
     def is_subscription(self):
-        return self._get_prop("is_in_subscriptions")
+        """
+        :retunrs: True if this client is subscribed to the user
+        :rtype: bool
+        """
+        return self._get_prop("is_in_subscriptions", False)
 
-class Post(ObjectBase):
+class Post(ObjectMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._url = f"{self.client.api}/content/{self.id}"
@@ -439,7 +637,7 @@ class Post(ObjectBase):
     def unsmiled(self):
         return self._get_prop("is_unsmiled")
 
-class Comment(ObjectBase):
+class Comment(CommentMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -453,27 +651,6 @@ class Comment(ObjectBase):
 
     def __eq__(self, other):
         return self.id == other
-
-    @property
-    def _account_data(self):
-        if self._update or self._account_data_payload is None:
-            self._update = False
-
-            params = {
-            "limit":    1,
-            "show":     self.id
-            }
-
-            key = "replies" if self._root else "comments"
-            post_comments = requests.get(self._url, headers = self.client.headers).json()["data"][key]["items"]
-            mine = [item for item in post_comments if item["id"] == self.id]
-
-            if not len(mine):
-                self._account_data_payload = {"is_deleted": True}
-            else:
-                self._account_data_payload = mine[0]
-
-        return self._account_data_payload
 
     def _replies_paginated(self, limit = None, prev = None, next = None):
         limit = limit if limit else self.paginated_size

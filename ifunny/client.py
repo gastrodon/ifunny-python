@@ -230,6 +230,7 @@ class Client:
         :type visibility: str
 
         :returns: True if successfuly posted (POST response is 202) else False
+        :rtype: bool
         """
         data = {
             "type": "pic",
@@ -250,7 +251,7 @@ class Client:
 
         :param ctx: Message content
 
-        :type ctx: ifunny.objects.MessageContext
+        :type ctx: MessageContext
         """
         parsed = ctx.message.split(" ")
         first, args = parsed[0], parsed[1:]
@@ -268,6 +269,7 @@ class Client:
         Start the chat websocket connection
 
         :returns: this client's socket object
+        :rtype: Socket
 
         :raises: Exception stating that the socket is already alive
         """
@@ -288,6 +290,9 @@ class Client:
 
         :type channel: ifunny.objects.Channel
         :type file_data: bytes
+
+        :returns: url to the uploaded content
+        :rtype: str
         """
         files = {
             "file": file_data
@@ -338,7 +343,8 @@ class Client:
         """
         Generate headers for iFunny requests dependant on authentication
 
-        :returns: (dict) request-ready headers
+        :returns: request-ready headers
+        :rtype: dict
         """
         _headers = {
             "User-Agent": self.__user_agent
@@ -354,10 +360,11 @@ class Client:
         """
         Get str representation of a prefix
 
-        :returns: str with a prefix that can be used to resolve commands
+        :returns: prefix that can be used to resolve commands
+        :rtype: str
         """
         if callable(self.__prefix):
-            return self.__prefix()
+            return str(self.__prefix())
 
         if isinstance(self.__prefix, str):
             return self.__prefix
@@ -370,7 +377,8 @@ class Client:
         Get the messenger_token used for sendbird api calls
         If a value is not stored in self.__messenger_token, one will be fetched from the client account data and stored
 
-        :returns: (str) messenger_token
+        :returns: messenger_token
+        :rtype: str
         """
         if not self.__messenger_token:
             self.__messenger_token = self.__account_data["messenger_token"]
@@ -382,7 +390,8 @@ class Client:
         """
         Get all unread notifications (notifications that have not been recieved from a GET) and return them in a list
 
-        :returns: list<ifunny.notifications.Notification> of unread notifications
+        :returns: unread notifications
+        :rtype: list<Notification>
         """
         unread = []
         generator = self.notifications
@@ -397,7 +406,8 @@ class Client:
         """
         Generate a new (sequential) sendbird websocket req_id in a thread safe way
 
-        :returns: (str) req_id
+        :returns: req_id
+        :rtype: str
         """
         self.__sendbird_lock.acquire()
         self.__sendbird__req_id += 1
@@ -408,6 +418,7 @@ class Client:
     def user(self):
         """
         :returns: this client's user object
+        :rtype: User
         """
         if not self.__user :
             self.__user = User(self.id, self, paginated_size = self.paginated_size)
@@ -417,28 +428,32 @@ class Client:
     @property
     def unread_notifications_count(self):
         """
-        :returns: (int) number of unread notifications
+        :returns: number of unread notifications
+        :rtype: int
         """
         return requests.get(f"{self.api}/counters", headers = self.headers).json()["data"]["news"]
 
     @property
     def nick(self):
         """
-        :returns: (str) this client's username (``nick``\ name)
+        :returns: this client's username (``nick``\ name)
+        :rtype: str
         """
         return self._get_prop("nick")
 
     @property
     def email(self):
         """
-        :returns: (str) this client's associated email
+        :returns: this client's associated email
+        :rtype: str
         """
         return self._get_prop("email")
 
     @property
     def id(self):
         """
-        :returns: (str) this client's unique id
+        :returns: this client's unique id
+        :rtype: str
         """
         if not self.__id:
             self.__id = self._get_prop("id")
@@ -450,7 +465,8 @@ class Client:
         """
         Sets the update flag for this client, and returns it. Useful for when new information is pertanent
 
-        :returns: (ifunny.client.Client) self
+        :returns: self
+        :rtype: Client
         """
         self._update = True
         return self
@@ -463,6 +479,7 @@ class Client:
         Generator for a client's notifications.
         Each iteration will return the next notification, in decending order of date recieved
 
-        :returns: generator<ifunny.notifications.Notification
+        :returns: generator iterating through notifications
+        :rtype: Generator<Notification>
         """
         return paginated_generator(self._notifications_paginated)

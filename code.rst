@@ -13,3 +13,10 @@ notifications
     :members:
     :undoc-members:
     :exclude-members: Channel, MessageContext
+
+objects
+=======
+
+.. automodule:: ifunny.objects
+    :members:
+    :undoc-members:
