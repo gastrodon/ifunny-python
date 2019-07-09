@@ -4,7 +4,7 @@ from random import random
 from hashlib import sha1
 from base64 import b64encode
 
-from ifunny.handler import Handler
+from ifunny.handler import Handler, Event
 from ifunny.commands import Command, Defaults
 from ifunny.sendbird import Socket
 from ifunny.notifications import Notification
@@ -37,9 +37,10 @@ class Client:
         "help" : Defaults.help
     }
 
-    def __init__(self, handler = Handler(), socket= Socket(), trace = False, prefix = "", paginated_size = 25):
+    def __init__(self, handler = Handler(), socket= Socket(), trace = False, prefix = {""}, paginated_size = 25):
         # command
-        self.__prefix = prefix
+        self.__prefix = None
+        self.prefix = prefix
 
         # locks
         self.__sendbird_lock = threading.Lock()
@@ -256,11 +257,10 @@ class Client:
         parsed = ctx.message.split(" ")
         first, args = parsed[0], parsed[1:]
 
-        if not first.startswith(self.prefix):
-            return
-
-        cmd = self.commands.get(first[len(self.prefix):], Defaults.default)
-        cmd(ctx, args)
+        for prefix in self.prefix:
+            if first.startswith(prefix):
+                cmd = self.commands.get(first[len(prefix):], Defaults.default)(ctx, args)
+                cmd(ctx, args)
 
     # sendbird methods
 
@@ -316,7 +316,7 @@ class Client:
     def command(self, name = None):
         """
         Decorator to add a command, callable in chat with the format ``{prefix}{command}``
-        Commands must take the arguments ``ctx`` and ``args``, which are set as the MessageContext and list<str> of space-separated words in the message (excluding the command) respectively::
+        Commands must take two arguments, which are set as the MessageContext and list<str> of space-separated words in the message (excluding the command) respectively::
 
             import ifunny
             robot = ifunny.Client()
@@ -333,6 +333,28 @@ class Client:
         def _inner(method):
             _name = name if name else method.__name__
             self.commands[_name] = Command(method, _name)
+
+        return _inner
+
+    def event(self, name = None):
+        """
+        Decorator to add an event, which is called when different things happen by the clients socket.
+        Events must take one argument, which is a dict with the websocket data::
+
+            import ifunny
+            robot = ifunny.Client()
+
+            @robot.event(name = "on_connect")
+            def event_when_connected_to_chat(data):
+                print(f"{robot} is chatting")
+
+        :param name: Name of the event. If None, the name of the function will be used instead. See the Sendbird section of the docs for valid events.
+
+        :type name: str
+        """
+        def _inner(method):
+            _name = name if name else method.__name__
+            self.handler.events[_name] = Event(method, _name)
 
         return _inner
 
@@ -358,18 +380,41 @@ class Client:
     @property
     def prefix(self):
         """
-        Get str representation of a prefix
+        Get a set of prefixes that this bot can use.
+        Each one is evaluated when handling a potential command
 
-        :returns: prefix that can be used to resolve commands
-        :rtype: str
+        :returns: prefixes that can be used to resolve commands
+        :rtype: set
         """
-        if callable(self.__prefix):
-            return str(self.__prefix())
+        _pref = self.__prefix
 
-        if isinstance(self.__prefix, str):
-            return self.__prefix
+        if callable(_pref):
+            _pref = self.__prefix()
 
-        raise Exception(f"prefix must be callable or str, not {type(self.__prefix)}")
+        if isinstance(_pref, (set, tuple, list, str)):
+            return set(self.__prefix)
+
+        raise TypeError(f"prefix must be str, iterable, or callable resulting in either. Not {type(_pref)}")
+
+    @prefix.setter
+    def prefix(self, value):
+        """
+        Set a set of prefixes that this bot can use.
+        Each one is evaluated when handling a potential command
+
+        :returns: prefixes that can be used to resolve commands
+        :rtype: set
+        """
+        _pref = value
+
+        if callable(value):
+            _pref = value()
+
+        if isinstance(_pref, (set, tuple, list, str)):
+            self.__prefix = value
+            return set(_pref)
+
+        raise TypeError(f"prefix must be str, iterable, or callable resulting in either. Not {type(_pref)}")
 
     @property
     def messenger_token(self):

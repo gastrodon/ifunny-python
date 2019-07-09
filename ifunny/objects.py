@@ -810,8 +810,7 @@ class Comment(CommentMixin):
     @property
     def cid(self):
         """
-        :returns: the cid of this comment.
-        A comments CID is the id of the post it's attached to
+        :returns: the cid of this comment. A comments CID is the id of the post it's attached to
         :rtype: str
         """
         if type(self._post) is str:
@@ -828,8 +827,7 @@ class Comment(CommentMixin):
     @property
     def state(self):
         """
-        :retunrs: the state of the comment.
-        Top comments are state top, and all others are state normal
+        :retunrs: the state of the comment. Top comments are state top, and all others are state normal
         :rtype: str (top, normal)
         """
         return self._get_prop("state")

@@ -11,7 +11,7 @@ class Handler:
         self.matches = {
             "PING": self._on_ping,
             "MESG": self._on_message,
-            "LOGI": self._on_ws_connect
+            "LOGI": self._on_connect
         }
 
     def resolve(self, data):
@@ -32,15 +32,16 @@ class Handler:
         if data["user"]["name"] == self.client.nick:
             return
 
-        self.events.get("on_message", self.default_event)(data) # TODO: use a message object here
-
         ctx = MessageContext(self.client, data)
+
+        self.events.get("on_message", self.default_event)(ctx) # TODO: use a message object here
         self.client.resolve_command(ctx)
 
-    def _on_ws_connect(self, key, data):
+    def _on_connect(self, key, data):
+        print("connected default")
         self.client.sendbird_session_key = data["key"]
         self.client.socket.connected = True
-        self.events.get("on_ws_connect", self.default_event)(data) # TODO: consider using an object for the data
+        self.events.get("on_connect", self.default_event)(data) # TODO: consider using an object for the data
 
     def _on_ping(self, key, data):
         timestamp = int(time() * 1000)
@@ -61,3 +62,12 @@ class Handler:
             self.events[_name] = method
 
         return _inner
+
+class Event:
+    def __init__(self, method, name):
+        self.method = method
+        self.name = name
+        self.help = self.method.__doc__
+
+    def __call__(self, data):
+        return self.method(data)

@@ -11,7 +11,8 @@ class Socket:
         self.socket_thread = None
 
     def on_open(self):
-        return
+        print("on open")
+        threading.Thread(target = self.client.handler.resolve, args = [data]).stert()
 
     def on_close(self):
         return
@@ -27,8 +28,6 @@ class Socket:
 
     def on_error(self, error):
         raise error
-
-
 
     def start(self):
         if not self.client:
