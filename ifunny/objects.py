@@ -116,8 +116,6 @@ class User(ObjectMixin):
     def __eq__(self, other):
         return self.id == other
 
-    # public methods
-
     # paginated data
 
     def _timeline_paginated(self, limit = None, prev = None, next = None):
@@ -492,8 +490,6 @@ class Post(ObjectMixin):
     def __eq__(self, other):
         return self.id == other
 
-    # public methods
-
     # paginated data
 
     def _smiles_paginated(self, limit = None, prev = None, next = None):
@@ -524,10 +520,20 @@ class Post(ObjectMixin):
 
     @property
     def smiles(self):
+        """
+        :returns: Generator iterating post smiles
+
+        :rtype: Generator<User>
+        """
         return paginated_generator(self._smiles_paginated)
 
     @property
     def comments(self):
+        """
+        :returns: Generator iterating post comments
+
+        :rtype: Generator<Comment>
+        """
         return paginated_generator(self._comments_paginated)
 
     # public properties
@@ -536,105 +542,205 @@ class Post(ObjectMixin):
 
     @property
     def smile_count(self):
+        """
+        :returns: post's smile count
+        :rtype: int
+        """
         return self._get_prop("num")["smiles"]
 
     @property
     def unsmile_count(self):
+        """
+        :returns: post's unsmile count
+        :rtype: int
+        """
         return self._get_prop("num")["unsmiles"]
 
     @property
     def guest_smile_count(self):
+        """
+        :returns: post's smile count by guests
+        :rtype: int
+        """
         return self._get_prop("num")["guest_smiles"]
 
     @property
     def comment_count(self):
+        """
+        :returns: post's comment count
+        :rtype: int
+        """
         return self._get_prop("num")["comments"]
 
     @property
     def views(self):
+        """
+        :returns: post's view count count
+        :rtype: int
+        """
         return self._get_prop("num")["views"]
 
     @property
-    def republish_count(self):
+    def republication_count(self):
+        """
+        :returns: post's republication count
+        :rtype: int
+        """
         return self._get_prop("num")["republished"]
 
     @property
     def shares(self):
+        """
+        :returns: post's share count
+        :rtype: int
+        """
         return self._get_prop("num")["shares"]
 
     @property
     def author(self):
+        """
+        :returns: post's author
+        :rtype: User
+        """
         data = self._get_prop("creator")
         return User(data["id"], self.client, data = data)
 
     @property
     def source(self):
+        """
+        :returns: post's instance on it's original account, if a republication
+        :rtype: Post
+        """
         return self._get_prop("source")
 
     @property
     def is_original(self):
+        """
+        :returns: True if this post is OC
+        :rtype: bool
+        """
         return self.source is None
 
     @property
     def is_featured(self):
+        """
+        :returns: True if this post is featured
+        :rtype: bool
+        """
         return self._get_prop("is_featured")
 
     @property
     def is_pinned(self):
+        """
+        :returns: True if this post is pinned on it's authors profile
+        :rtype: bool
+        """
         return self._get_prop("is_pinned")
 
     @property
     def is_abused(self):
+        """
+        :returns: True if this post was removed by moderators
+        :rtype: bool
+        """
         return self._get_prop("is_abused")
 
     @property
     def type(self):
+        """
+        :returns: content ype of a post
+        :rtype: str
+        """
         return self._get_prop("type")
 
     @property
     def tags(self):
+        """
+        :returns: the tags of a post
+        :rtype: list<str>
+        """
         return self._get_prop("tags")
 
     @property
     def visibility(self):
+        """
+        :returns: the visibility of a post
+        :rtype: str (public, subscribers, ect)
+        """
         return self._get_prop("visibility")
 
     @property
     def state(self):
+        """
+        :returns: the publicication state of the post
+        :rtype: str (published, ect)
+        """
         return self._get_prop("state")
 
     @property
     def boostable(self):
+        """
+        :returns: True if this post is able to be boosted
+        :rtype: bool
+        """
         return self._get_prop("can_be_boosted")
 
     @property
     def created_at(self):
+        """
+        :returns: creation date timestamp
+        :rtype: int
+        """
         return self._get_prop("date_created")
 
     @property
     def published_at(self):
+        """
+        :returns: creation date timestamp
+        :rtype: int
+        """
         return self._get_prop("published_at")
 
     @property
     def content_url(self):
+        """
+        :returns: url pointing to the full sized image
+        :rtype: str
+        """
         return self._get_prop("url")
 
     @property
     def content(self):
+        """
+        :returns: image or video data from the post
+        :rtype: bytes
+        """
         return requests.get(self.content_url).content
 
     # authentication dependant attributes
 
     @property
     def is_republished(self):
+        """
+        :returns: True if this pic is republished by the attached client
+        :rtype: bool
+        """
         return self._get_prop("is_republished")
 
     @property
     def smiled(self):
+        """
+        :returns: True if this pic is smiled by the attached client
+        :rtype: bool
+        """
         return self._get_prop("is_smiled")
 
     @property
     def unsmiled(self):
+        """
+        :returns: True if this pic is unsmiled by the attached client
+        :rtype: bool
+        """
         return self._get_prop("is_unsmiled")
 
 class Comment(CommentMixin):
@@ -667,14 +773,25 @@ class Comment(CommentMixin):
     # public methods
 
     def delete(self):
+        """
+        Delete a comment belonging to you or on your post.
+
+        :returns: True if the post was deleted (if the POST response was 200), else False
+        :rtype: bool
+        """
         response = requests.delete(f"{self._url}/{self.id}", headers = self.client.headers)
 
-        return response
+        return response.status_code == 200
 
     # public generators
 
     @property
     def replies(self):
+        """
+        :returns: Generator iterating comment replies
+
+        :rtype: Generator<Comment>
+        """
         return paginated_generator(self._replies_paginated)
 
     # public properties
@@ -683,11 +800,20 @@ class Comment(CommentMixin):
 
     @property
     def content(self):
+        """
+        :returns: the text content of a comment
+        :rtype: str
+        """
         value = self._get_prop("text")
         return value if value else ""
 
     @property
     def cid(self):
+        """
+        :returns: the cid of this comment.
+        A comments CID is the id of the post it's attached to
+        :rtype: str
+        """
         if type(self._post) is str:
             self._post = Post(self._post, self.client)
 
@@ -701,26 +827,36 @@ class Comment(CommentMixin):
 
     @property
     def state(self):
+        """
+        :retunrs: the state of the comment.
+        Top comments are state top, and all others are state normal
+        :rtype: str (top, normal)
+        """
         return self._get_prop("state")
 
     @property
     def author(self):
+        """
+        :returns: the comment author
+        :rtype: Use
+        """
         data = self._get_prop("user")
         return User(data["id"], self.client, data = data)
 
     @property
     def post(self):
+        """
+        :returns: the post that this comment is on
+        :rtype: Post
+        """
         return Post(self.cid, self.client)
 
     @property
     def root(self):
-        if self.is_root:
-            return None
-
-        return Comment(self._get_prop("root_comm_id"), self.client, post = self.cid)
-
-    @property
-    def root(self):
+        """
+        :returns: this comments root parent, or None if comment is root
+        :rtype: Comment, or None
+        """
         if self.is_root:
             return None
 
@@ -728,22 +864,42 @@ class Comment(CommentMixin):
 
     @property
     def smile_count(self):
+        """
+        :returns: number of smiles on this comment
+        :rtype: int
+        """
         return self._get_prop("num")["smiles"]
 
     @property
     def unsmile_count(self):
+        """
+        :returns: number of unsmiles on this comment
+        :rtype: int
+        """
         return self._get_prop("num")["unsmiles"]
 
     @property
     def reply_count(self):
+        """
+        :returns: number of replies on this comment
+        :rtype: int
+        """
         return self._get_prop("num")["replies"]
 
     @property
     def created_at(self):
+        """
+        :returns: creation date timestamp
+        :rtype: int
+        """
         self._get_prop("date")
 
     @property
     def depth(self):
+        """
+        :returns: the depth of this comment
+        :rtype: int
+        """
         if self.is_root:
             return 0
 
@@ -751,19 +907,35 @@ class Comment(CommentMixin):
 
     @property
     def is_root(self):
+        """
+        :returns: True if this comment has been edited
+        :rtype: bool
+        """
         return not self._get_prop("is_reply")
 
     @property
     def is_deleted(self):
+        """
+        :returns: True if this comment has been deleted
+        :rtype: bool
+        """
         value = self._get_prop("is_deleted")
         return value if value else False
 
     @property
     def is_edited(self):
+        """
+        :returns: True if this comment has been edited
+        :rtype: bool
+        """
         return self._get_prop("is_edited")
 
     @property
     def attached_post(self):
+        """
+        :returns: the attached post, if any
+        :rtype: Post, or None
+        """
         data = self._get_prop("attachments")["content"]
 
         if len(data) == 0:
@@ -773,6 +945,10 @@ class Comment(CommentMixin):
 
     @property
     def mentioned_users(self):
+        """
+        :returns: a list of mentioned users, if any
+        :rtype: list<User>
+        """
         data = self._get_prop("attachments")["mention_user"]
 
         if len(data) == 0:
@@ -784,10 +960,18 @@ class Comment(CommentMixin):
 
     @property
     def is_smiled(self):
+        """
+        :returns: True if this comment is smile by the attached client
+        :rtype: bool
+        """
         return self._get_prop("is_smiled")
 
     @property
     def is_unsmiled(self):
+        """
+        :returns: True if this comment is unsmiled by the attached client
+        :rtype: bool
+        """
         return self._get_prop("is_unsmiled")
 
 class Channel:
