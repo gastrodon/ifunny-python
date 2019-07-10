@@ -286,7 +286,7 @@ class Client:
 
         :type message: Message
         """
-        parsed = message.message.content.split(" ")
+        parsed = message.content.split(" ")
         first, args = parsed[0], parsed[1:]
 
         for prefix in self.prefix:

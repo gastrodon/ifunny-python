@@ -1033,7 +1033,6 @@ class Channel(SendbirdMixin):
 
     def join(self):
         response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}/members", headers = self.client.headers)
-        print(self.client.headers)
 
         return True if response.status_code == 200 else False
 
