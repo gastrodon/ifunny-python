@@ -278,20 +278,20 @@ class Client:
         response = requests.post(f"{self.api}/content", headers = self.headers, data = data, files = files)
         return response.status_code == 202
 
-    def resolve_command(self, ctx):
+    def resolve_command(self, message):
         """
         Find and call a command called from a message
 
-        :param ctx: Message content
+        :param message: Message object recieved from the sendbird socket
 
-        :type ctx: Message
+        :type message: Message
         """
-        parsed = ctx.message.split(" ")
+        parsed = message.message.content.split(" ")
         first, args = parsed[0], parsed[1:]
 
         for prefix in self.prefix:
             if first.startswith(prefix):
-                return self.commands.get(first[len(prefix):], Defaults.default)(ctx, args)
+                return self.commands.get(first[len(prefix):], Defaults.default)(message, args)
 
     # sendbird methods
 
