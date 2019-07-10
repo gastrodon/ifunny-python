@@ -1,5 +1,5 @@
 client
-======
+------
 
 .. automodule:: ifunny.client
     :members:
@@ -7,15 +7,15 @@ client
     :exclude-members: api, sendbird_api, commands
 
 notifications
-=============
+-------------
 
 .. automodule:: ifunny.notifications
     :members:
     :undoc-members:
-    :exclude-members: Channel, MessageContext
+    :exclude-members: Channel, Message
 
 objects
-=======
+-------
 
 .. automodule:: ifunny.objects
     :members:

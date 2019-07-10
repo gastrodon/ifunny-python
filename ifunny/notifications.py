@@ -21,9 +21,8 @@ class Notification:
     @property
     def user(self):
         """
-        The user attatched to a notification, usually the one who triggered it.
-
-        :returns: User, or None
+        :returns: the user attatched to a notification, usually the one who triggered it.
+        :rtype: User, or None
         """
         data = self.__data.get("user")
 
@@ -35,9 +34,8 @@ class Notification:
     @property
     def post(self):
         """
-        The post attatched to a notification.
-
-        :returns: Post, or None
+        :returns: the post attatched to a notification.
+        :rtype: Post, or None
         """
         data = self.__data.get("content")
 
@@ -49,9 +47,8 @@ class Notification:
     @property
     def comment(self):
         """
-        The comment (root comment or reply) attatched to a notification
-
-        :returns: Comment, or None
+        :returns: the comment (root comment or reply) attatched to a notification
+        :rtype: Comment, or None
         """
         if self.type == "reply_for_comment":
             data = self.__data.get("reply")
@@ -72,17 +69,15 @@ class Notification:
     @property
     def created_at(self):
         """
-        Time at which the notification was created
-
-        :returns: time in seconds
+        :returns: time at which the notification was created
+        :rtype: time in seconds
         """
         return self.__data.get("date")
 
     @property
     def smile_count(self):
         """
-        Smile count, if self.type is "smile_tracker"
-
-        :returns: int, or None
+        :returns: smile count, if self.type is "smile_tracker"
+        :rtype: int, or None
         """
         return self.__data.get("smiles")

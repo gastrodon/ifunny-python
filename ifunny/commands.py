@@ -1,16 +1,16 @@
-def _default(ctx, args):
+def _default(message, args):
     return
 
-def _help(ctx, args):
+def _help(message, args):
     """
     List commands
     """
     _help = ""
-    for command in ctx.client.commands:
-        command = ctx.client.commands[command]
+    for command in message.client.commands:
+        command = message.client.commands[command]
         _help += f"{command.name} - {command.help if command.help else 'no docstring'}\n"
 
-    ctx.send(_help)
+    message.send(_help)
 
 class Command:
     def __init__(self, method, name):
@@ -18,8 +18,8 @@ class Command:
         self.name = name
         self.help = self.method.__doc__
 
-    def __call__(self, ctx, args):
-        return self.method(ctx, args)
+    def __call__(self, message, args):
+        return self.method(message, args)
 
 class Defaults:
 

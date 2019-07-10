@@ -8,22 +8,20 @@ from ifunny.handler import Handler, Event
 from ifunny.commands import Command, Defaults
 from ifunny.sendbird import Socket
 from ifunny.notifications import Notification
-from ifunny.objects import User
+from ifunny.objects import User, Channel
 from ifunny.utils import format_paginated, paginated_data, paginated_generator
 
 class Client:
     """
     iFunny client used to do most things.
 
-    :param handler: Websocket event handler
-    :param socket: Websocket manager handling the chat connection
-    :param trace: Trace boolean to send to the socket object
+    :param trace: True to enable socket trace for debugging
+    :param threaded: False to have all socket callbacks run in the same thread for debugging
     :param prefix: Static string or callable prefix for chat commands
     :param paginated_size: Number of items to request in paginated methods
 
-    :type handler: ifunny.handler.Handler
-    :type socket: ifunny.sendbird.Socket
     :type trace: bool
+    :type threaded: bool
     :type prefix: str or callable
     :type paginated_size: int
     """
@@ -37,7 +35,7 @@ class Client:
         "help" : Defaults.help
     }
 
-    def __init__(self, handler = Handler(), socket= Socket(), trace = False, prefix = {""}, paginated_size = 25):
+    def __init__(self, trace = False, threaded = True, prefix = {""}, paginated_size = 25):
         # command
         self.__prefix = None
         self.prefix = prefix
@@ -59,12 +57,9 @@ class Client:
         # attatched objects
         self.paginated_size = paginated_size
 
-        handler.client = self
-        self.handler = handler
+        self.handler = Handler(self)
 
-        socket.client = self
-        self.socket = socket
-        self.socket_trace = trace
+        self.socket = Socket(self, trace, threaded)
 
         # own profile data
         self.__user = None
@@ -114,19 +109,56 @@ class Client:
 
         return format_paginated(data, items)
 
+    def _channels_paginated(self, limit = 100, next = None, prev = None, show_empty = True, show_read_recipt = True, show_member = True, public_mode = "all", super_mode = "all", distinct_mode = "all", member_state_filter = "all", order = "latest_last_message"):
+        limit = min(limit, 100)
+
+        params = {
+            "limit":                limit,
+            "token":                next,
+            "show_empty":           show_empty,
+            "show_read_recipt":     show_read_recipt,
+            "show_member":          show_member,
+            "public_mode":          public_mode,
+            "super_mode":           super_mode,
+            "distinct_mode":        distinct_mode,
+            "member_state_filter":  member_state_filter,
+            "order":                order
+        }
+
+        url = f"{self.sendbird_api}/users/{self.id}/my_group_channels"
+
+        response = requests.get(url, params = params, headers = self.sendbird_headers)
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        response = response.json()
+
+        paging = {
+            "next": response["next"]
+        }
+
+        return {
+            "paging":   paging,
+            "items": [Channel(data["channel_url"], self, data = data) for data in response["channels"]]
+        }
+
     # private properties
 
     @property
-    def __sendbird_headers(self):
+    def sendbird_headers(self):
         """
-        Generate headers for a sendbird api call
+        Generate headers for a sendbird api call.
+        If a sendbird_session_key exists, it's added
 
-        returns
-            dict
+        :returns: sendbird-ready headers
+        :rtype: dict
         """
-        _headers = {}
+        _headers = {
+            "User-Agent": "jand/3.055"
+        }
 
-        if self.socket.connected:
+        if self.sendbird_session_key:
             _headers["Session-Key"] = self.sendbird_session_key
 
         return _headers
@@ -252,15 +284,14 @@ class Client:
 
         :param ctx: Message content
 
-        :type ctx: MessageContext
+        :type ctx: Message
         """
         parsed = ctx.message.split(" ")
         first, args = parsed[0], parsed[1:]
 
         for prefix in self.prefix:
             if first.startswith(prefix):
-                cmd = self.commands.get(first[len(prefix):], Defaults.default)(ctx, args)
-                cmd(ctx, args)
+                return self.commands.get(first[len(prefix):], Defaults.default)(ctx, args)
 
     # sendbird methods
 
@@ -304,7 +335,7 @@ class Client:
             "channel_url"   : channel.url
         }
 
-        response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.__sendbird_headers, files = files, data = data)
+        response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.sendbird_headers, files = files, data = data)
 
         if response.status_code != 200:
             raise Exception(response.text)
@@ -316,7 +347,7 @@ class Client:
     def command(self, name = None):
         """
         Decorator to add a command, callable in chat with the format ``{prefix}{command}``
-        Commands must take two arguments, which are set as the MessageContext and list<str> of space-separated words in the message (excluding the command) respectively::
+        Commands must take two arguments, which are set as the Message and list<str> of space-separated words in the message (excluding the command) respectively::
 
             import ifunny
             robot = ifunny.Client()
