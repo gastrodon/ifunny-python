@@ -49,7 +49,7 @@ def paginated_data(source_url, data_key, headers, limit = 25, prev = None, next 
     response = requests.get(source_url, headers = headers, params = params)
 
     if response.status_code != 200:
-        raise Exception(f"requesting {response.url} failed\n{response.text}")
+        raise BadAPIResponse(f"requesting {response.url} failed\n{response.text}")
 
     return response.json()["data"][data_key]
 

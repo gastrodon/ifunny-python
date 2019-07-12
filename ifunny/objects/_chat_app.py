@@ -35,7 +35,7 @@ class SendbirdMixin(ObjectMixin):
             try:
                 self._account_data_payload = response.json()
             except KeyError:
-                raise Exception(response.text)
+                raise BadAPIResponse(response.text)
 
         return self._account_data_payload
 
@@ -256,7 +256,7 @@ class IncomingChannel:
         response = requests.put(f"{self.url}/accept", headers = headers, data = data)
 
         if response.status_code != 200:
-            raise Exception(response.text)
+            raise BadAPIResponse(response.text)
 
         data = response.json()
         return self.channel

@@ -47,7 +47,7 @@ class ObjectMixin:
             try:
                 self._account_data_payload = response.json()["data"]
             except KeyError:
-                raise Exception(response.text)
+                raise BadAPIResponse(response.text)
 
         return self._account_data_payload
 
@@ -196,7 +196,7 @@ class User(ObjectMixin):
             raise BadAPIResponse(response.text)
 
         response = response.json()
-        return cls(response["data"]["id"], client, response["data"])
+        return cls(response["data"]["id"], client, data = response["data"])
 
     def subscribe(self):
         """
@@ -208,7 +208,7 @@ class User(ObjectMixin):
         response = requests.put(f"{self._url}/subscribers", headers = self.client.headers)
 
         if response.status_code != 200:
-            raise Exception(response.text)
+            raise BadAPIResponse(response.text)
 
         return self
 
@@ -222,7 +222,7 @@ class User(ObjectMixin):
         response = requests.delete(f"{self._url}/subscribers", headers = self.client.headers)
 
         if response.status_code != 200:
-            raise Exception(response.text)
+            raise BadAPIResponse(response.text)
 
         return True
 
@@ -253,7 +253,7 @@ class User(ObjectMixin):
             if response.json().get("error") == "already_blocked":
                 return self
 
-            raise Exception(response.text)
+            raise BadAPIResponse(response.text)
 
         return self
 
@@ -274,7 +274,7 @@ class User(ObjectMixin):
             if response.json().get("error") == "not_blocked":
                 return False
 
-            raise Exception(response.text)
+            raise BadAPIResponse(response.text)
 
         return True
 
@@ -307,7 +307,7 @@ class User(ObjectMixin):
         response = requests.put(f"{self._url}/abuses", headers = self.client.headers, params = params)
 
         if response.status_code != 200:
-            raise Exception(response.text)
+            raise BadAPIResponse(response.text)
 
         return self
 
@@ -1007,7 +1007,7 @@ class Comment(CommentMixin):
         self.__cid = None
 
         if self._post == None and self._account_data_payload["cid"] == None:
-            raise Exception("This needs a post")
+            raise BadAPIResponse("This needs a post")
 
         self._url = f"{self.client.api}/content/{self.cid}/comments" if not self._root else f"{self.client.api}/content/{self.cid}/comments/{self._root}/replies"
 

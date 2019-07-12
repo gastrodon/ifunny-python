@@ -34,7 +34,7 @@ class Socket:
 
     def start(self):
         if not self.client:
-            raise Exception(f"client cannont be {self.client}")
+            raise TypeError(f"client cannont be {self.client}")
 
         route = requests.get(f"{self.sendbird_url}/routing/{self.route}").json()
         self.socket_url = route["ws_server"]

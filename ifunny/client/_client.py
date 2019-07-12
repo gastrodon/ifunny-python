@@ -10,6 +10,7 @@ from ifunny.client._commands import Command, Defaults
 from ifunny.client._sendbird import Socket
 from ifunny.objects import User, Channel, Notification
 from ifunny.util.methods import paginated_format, paginated_data, paginated_generator
+from ifunny.util.exceptions import ChatAlreadyActive, BadAPIResponse
 
 class Client:
     """
@@ -130,7 +131,7 @@ class Client:
         response = requests.get(url, params = params, headers = self.sendbird_headers)
 
         if response.status_code != 200:
-            raise Exception(response.text)
+            raise BadAPIResponse(response.text)
 
         response = response.json()
 
@@ -215,7 +216,7 @@ class Client:
         """
 
         if self.authenticated:
-            raise Exception(f"Already logged in as {self.nick}")
+            raise AlreadyAuthenticated(f"This client instance already authenticated as {self.nick}")
 
         if not force and self.__config.get(f"{email}_token"):
             self.__token = self.__config[f"{email}_token"]
@@ -242,7 +243,7 @@ class Client:
             response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
 
         if response.status_code != 200:
-            raise Exception(response.text)
+            raise BadAPIResponse(response.text)
 
         self.__token = response.json()["access_token"]
         self.authenticated = True
@@ -306,7 +307,7 @@ class Client:
         :raises: Exception stating that the socket is already alive
         """
         if self.socket.active:
-            raise Exception("Already started")
+            raise ChatAlreadyActive("Already started")
 
         if not self.messenger_token:
             self.messenger_token = self.__account_data["messenger_token"]
@@ -348,7 +349,7 @@ class Client:
         response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.sendbird_headers, files = files, data = data)
 
         if response.status_code != 200:
-            raise Exception(response.text)
+            raise BadAPIResponse(response.text)
 
         return response.json()["url"]
 
