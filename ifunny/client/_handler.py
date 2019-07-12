@@ -1,7 +1,7 @@
 import json, requests
 from time import time
 
-from ifunny.objects import Message, Invite
+from ifunny.objects import Message, IncomingChannel
 
 class Handler:
     def __init__(self, client):
@@ -56,8 +56,8 @@ class Handler:
         return client.socket.send(f"PONG{data}\n")
 
     def _on_new_channel(self, key, data):
-        invite = Invite(data, self.client)
-        self.events.get("on_new_channel", self.default_event)(invite)
+        incoming = IncomingChannel(data, self.client)
+        self.events.get("on_new_channel", self.default_event)(incoming)
 
     # public decorators
 

@@ -54,6 +54,12 @@ class Socket:
         self.socket_thread = threading.Thread(target = self.socket.run_forever, kwargs = {"ping_interval": 15})
         self.socket_thread.start()
         self.active = True
+        return self.socket
+
+    def stop(self):
+        self.socket.close()
+        self.active = False
+        return self.socket
 
     def send(self, data):
         self.socket.send(data)

@@ -1,5 +1,6 @@
-import json, time, random, requests
-from ifunny.utils import determine_mime, invalid_type, format_paginated, paginated_data, paginated_generator
+import requests, json
+from ifunny.util.methods import invalid_type, paginated_format, paginated_data, paginated_generator, get_slice
+from ifunny.util.exceptions import NoContent, TooManyMentions, BadAPIResponse, FailedToComment
 
 class ObjectMixin:
     """
@@ -106,45 +107,19 @@ class CommentMixin(ObjectMixin):
 
         return self._account_data_payload
 
-class SendbirdMixin(ObjectMixin):
+class User(ObjectMixin):
     """
-    Mixin class for sendbird objects.
-    Used to implement common methods, subclass to ObjectMixin
+    iFunny User object.
 
-    :param id: id of the object
-    :param client: Client that the object belongs to
-    :param data: A data payload for the object to pull from before requests
+    :param id: id of the user
+    :param client: Client that the user belongs to
+    :param data: A data payload for the user to pull from before requests
     :param paginated_size: number of items to get for each paginated request. If above the call type's maximum, that will be used instead
 
     :type id: str
     :type client: Client
     :type data: dict
     :type paginated_size: int
-    """
-    def __init__(self, id, client, data = None, paginated_size = 30):
-        super().__init__(id, client, data = data, paginated_size = paginated_size)
-
-    @property
-    def _account_data(self):
-        if self._update or self._account_data_payload is None:
-            self._update = False
-            response = requests.get(self._url, headers = self.client.sendbird_headers)
-
-            if response.status_code == 403:
-                self._account_data_payload = {}
-                return self._account_data_payload
-
-            try:
-                self._account_data_payload = response.json()
-            except KeyError:
-                raise Exception(response.text)
-
-        return self._account_data_payload
-
-class User(ObjectMixin):
-    """
-    Ifunny User object.
-    Params taken from parent ObjectMixin
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -170,7 +145,7 @@ class User(ObjectMixin):
 
         items = [Post(item["id"], self.client, data = item) for item in data["items"]]
 
-        return format_paginated(data, items)
+        return paginated_format(data, items)
 
     def _subscribers_paginated(self, limit = None, prev = None, next = None):
         limit = limit if limit else self.paginated_size
@@ -182,7 +157,7 @@ class User(ObjectMixin):
 
         items = [User(item["id"], self.client, data = item) for item in data["items"]]
 
-        return format_paginated(data, items)
+        return paginated_format(data, items)
 
     def _subscriptions_paginated(self, limit = None, prev = None, next = None):
         limit = limit if limit else self.paginated_size
@@ -194,15 +169,40 @@ class User(ObjectMixin):
 
         items = [User(item["id"], self.client, data = item) for item in data["items"]]
 
-        return format_paginated(data, items)
+        return paginated_format(data, items)
 
     # actions
+
+    @classmethod
+    def by_nick(cls, nickname, client):
+        """
+        Get a user from their nickname.
+
+        :param nickname: nickname of the user to query. If this user does not exist, nothing will be returned
+        :param client: the Client to bind the returned user object to
+
+        :type nickname: str
+        :type client: Client
+
+        :returns: A User with a given nickname, if they exist
+        :rtype: User, or None
+        """
+        response = requests.get(f"{client.api}/users/by_nick/{nickname}", headers = client.headers)
+
+        if response.status_code == 404:
+            return None
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        response = response.json()
+        return cls(response["data"]["id"], client, response["data"])
 
     def subscribe(self):
         """
         Subscribe to a user
 
-        :returns: self for chaining methods
+        :returns: self
         :rtype: User
         """
         response = requests.put(f"{self._url}/subscribers", headers = self.client.headers)
@@ -216,7 +216,7 @@ class User(ObjectMixin):
         """
         Unsubscribe from a user
 
-        :returns: self for chaining
+        :returns: self
         :rtype: User
         """
         response = requests.delete(f"{self._url}/subscribers", headers = self.client.headers)
@@ -228,13 +228,13 @@ class User(ObjectMixin):
 
     def block(self, type = "user"):
         """
-        Block a user, either by account or device
+        Block a user, either by account or device.
 
-        :param type: type of block. user blocks a user, installation blocks all users tied to a device
+        :param type: Type of block. user blocks a user, installation blocks all users tied to a device
 
         :type type: str
 
-        :returns: self for chaining
+        :returns: self
 
         :rtype: User
         """
@@ -259,9 +259,9 @@ class User(ObjectMixin):
 
     def unblock(self):
         """
-        Unblock a user
+        Unblock a user.
 
-        :returns: self for chaining
+        :returns: self
         :rtype: User
         """
         params = {
@@ -280,9 +280,9 @@ class User(ObjectMixin):
 
     def report(self, type):
         """
-        Report a user
+        Report a user.
 
-        :param type: reason for report \n
+        :param type: Reason for report \n
             hate   -> hate speech \n
             nude   -> nudity \n
             spam   -> spam posting \n
@@ -291,7 +291,7 @@ class User(ObjectMixin):
 
         :type type: str
 
-        :returns: self for chaining
+        :returns: self
 
         :rtype: User
         """
@@ -308,6 +308,34 @@ class User(ObjectMixin):
 
         if response.status_code != 200:
             raise Exception(response.text)
+
+        return self
+
+    def subscribe_to_updates(self):
+        """
+        Subscribe to update notifications from this User.
+
+        :returns: self
+        :rtype: User
+        """
+        response = requests.put(f"{self.client.api}/users/{self.id}/updates_subscribers", headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        return self
+
+    def unsubscribe_to_updates(self):
+        """
+        Unsubscribe to update notifications from this User.
+
+        :returns: self
+        :rtype: User
+        """
+        response = requests.delete(f"{self.client.api}/users/{self.id}/updates_subscribers", headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
 
         return self
 
@@ -403,7 +431,7 @@ class User(ObjectMixin):
     @property
     def is_verified(self):
         """
-        :retunrs: True if this user is verified
+        :retunrs: is this user verified?
         :rtype: bool
         """
         return self._get_prop("is_verified")
@@ -411,7 +439,7 @@ class User(ObjectMixin):
     @property
     def is_banned(self):
         """
-        :retunrs: True if this user is banned
+        :retunrs: is this user banned?
         :rtype: bool
         """
         return self._get_prop("is_banned")
@@ -419,7 +447,7 @@ class User(ObjectMixin):
     @property
     def is_deleted(self):
         """
-        :retunrs: True if this user is deleted
+        :retunrs: is this user deleted?
         :rtype: bool
         """
         return self._get_prop("is_deleted")
@@ -459,9 +487,12 @@ class User(ObjectMixin):
     @property
     def chat_url(self):
         """
-        :retunrs: this users chat url
+        :retunrs: this users chat url, if ``user.can_chat``
         :rtype: str
         """
+        if not self.can_chat or self == self.client.user:
+            return None
+
         if not self._chat_url:
             data = {
                 "chat_type": "chat",
@@ -469,16 +500,28 @@ class User(ObjectMixin):
             }
 
             response = requests.post(f"{self.client.api}/chats", headers = self.client.headers, data = data)
-            self._chat_url = (response.url, data, response.text)
+
+            self._chat_url = response.json()["data"].get("chatUrl")
 
         return self._chat_url
+
+    @property
+    def chat_channel(self):
+        """
+        :retunrs: this users chat channel, if ``user.can_chat``
+        :rtype: Channel
+        """
+        if self.chat_url:
+            return Channel(self.chat_url, self.client)
+
+        return None
 
     # authentication dependant attributes
 
     @property
     def blocked(self):
         """
-        :retunrs: True if this user is blocked the client
+        :retunrs: is this user blocked by me?
         :rtype: bool
         """
         return self._get_prop("is_blocked")
@@ -486,7 +529,7 @@ class User(ObjectMixin):
     @property
     def blocking_me(self):
         """
-        :retunrs: True if this user is blocking the client
+        :retunrs: is this user blocking me?
         :rtype: bool
         """
         return self._get_prop("are_you_blocked")
@@ -494,7 +537,7 @@ class User(ObjectMixin):
     @property
     def can_chat(self):
         """
-        :retunrs: True if this user can chat with the client
+        :retunrs: can I chat with this user?
         :rtype: bool
         """
         return self._get_prop("is_available_for_chat", False)
@@ -502,7 +545,7 @@ class User(ObjectMixin):
     @property
     def subscribed_to_updates(self):
         """
-        :retunrs: True if this user is subscribed to notification updates
+        :retunrs: is this user subscribed to updates?
         :rtype: bool
         """
         return self._get_prop("is_subscribed_to_updates", False)
@@ -510,7 +553,7 @@ class User(ObjectMixin):
     @property
     def is_subscribed(self):
         """
-        :retunrs: True if this user is subscribed to the client
+        :retunrs: is this user subscribed to me?
         :rtype: bool
         """
         return self._get_prop("is_in_subscribers", False)
@@ -518,15 +561,24 @@ class User(ObjectMixin):
     @property
     def is_subscription(self):
         """
-        :retunrs: True if this client is subscribed to the user
+        :retunrs: am I subscribed to this user?
         :rtype: bool
         """
         return self._get_prop("is_in_subscriptions", False)
 
 class Post(ObjectMixin):
     """
-    Ifunny Post object.
-    Params taken from parent ObjectMixin
+    iFunny Post object
+
+    :param id: id of the post
+    :param client: Client that the post belongs to
+    :param data: A data payload for the post to pull from before requests
+    :param paginated_size: number of items to get for each paginated request. If above the call type's maximum, that will be used instead
+
+    :type id: str
+    :type client: Client
+    :type data: dict
+    :type paginated_size: int
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -547,7 +599,7 @@ class Post(ObjectMixin):
 
         items = [User(item["id"], self.client, data = item) for item in data["items"]]
 
-        return format_paginated(data, items)
+        return paginated_format(data, items)
 
     def _comments_paginated(self, limit = None, prev = None, next = None):
         limit = limit if limit else self.paginated_size
@@ -559,7 +611,155 @@ class Post(ObjectMixin):
 
         items = [Comment(item["id"], self.client, data = item, post = self) for item in data["items"]]
 
-        return format_paginated(data, items)
+        return paginated_format(data, items)
+
+    # public methods
+
+    def add_comment(self, text = None, post = None, user_mentions = None):
+        """
+        Add a comment to a post.
+        At least one of the parameters must be used, as users shoud not post empty comments.
+
+        :param text: Text of the comment, if any
+        :param post: Post to post in the comment, if any. Can be a post id or a Post object, but the Post in reference must belong to the client creating the comment
+        :param user_mentions: Users to mention, if any. Mentioned users must have their nick in the comment, and will be mentioned at the first occurance of their nick
+
+        :type text: str
+        :type post: Post or str
+        :type user_mentions: list<User>
+
+        :returns: the posted comment
+        :rtype: Comment
+        """
+
+        if not any((text, post, user_mentions)):
+            raise NoContent("Must have at least one of (text, post, user_mentions)")
+
+        data = {}
+
+        if text:
+            data["text"] = str(text)
+
+        if user_mentions:
+            if any([user.nick not in text for user in user_mentions]):
+                raise TooManyMentions("Not all user mentions are included in the text")
+
+            formatted = [":".join([user.id, get_slice(text, user.nick)]) for user in user_mentions]
+            data["user_mentions"] = ";".join(formatted)
+
+        if post:
+            if isinstance(post, str):
+                post = Post(post, self.client)
+
+            if post.author != self.client.user:
+                raise NotOwnPost("Users can only add ther own posts to a meme")
+
+            data["content"] = post.id
+
+        response = requests.post(f"{self._url}/comments", data = data, headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        response = response.json()
+
+        if response["data"]["id"] == "000000000000000000000000":
+            #raise FailedToComment(f"Failed to add the comment {text}")
+            print(f"Failed to add the comment {text}. Are you posting the same comment too fast?")
+            return response
+
+        return Comment(response["data"]["id"], self.client, data = response["data"]["comment"])
+
+    def smile(self):
+        """
+        Smile a Post. If already smiled, nothing will happen.
+
+        :returns: self
+        :rtype: Post
+        """
+        response = requests.put(f"{self._url}/smiles", headers = self.client.headers)
+
+        if response.status_code != 200 and response.status_code != 403:
+            raise BadAPIResponse(response.text)
+
+        return self
+
+    def remove_smile(self):
+        """
+        Remove a smile from a post. If none exists, nothing will happen.
+
+        :returns: self
+        :rtype: Post
+        """
+        response = requests.delete(f"{self._url}/smiles", headers = self.client.headers)
+
+        if response.status_code != 200 and response.status_code != 403:
+            raise BadAPIResponse(response.text)
+
+        return self
+
+    def unsmile(self):
+        """
+        Unsmile a Post. If already unsmiled, nothing will happen.
+
+        :returns: self
+        :rtype: Post
+        """
+        response = requests.put(f"{self._url}/unsmiles", headers = self.client.headers)
+
+        if response.status_code != 200 and response.status_code != 403:
+            raise BadAPIResponse(response.text)
+
+        return self
+
+    def remove_unsmile(self):
+        """
+        Remove an unsmile from a post. If none exists, nothing will happen.
+
+        :returns: self
+        :rtype: Post
+        """
+        response = requests.delete(f"{self._url}/unsmiles", headers = self.client.headers)
+
+        if response.status_code != 200 and response.status_code != 403:
+            raise BadAPIResponse(response.text)
+
+        return self
+
+    def republish(self):
+        """
+        Republish this post. If this post is already republished by the client, nothing will happen.
+
+        :returns: republished instance of this post, or None if already republished
+        :rtype: Post, or None
+        """
+        response = requests.post(f"{self._url}/republished", headers = self.client.headers)
+
+        if response.status_code == 403:
+            return None
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        return Post(response.json()["data"]["id"], self.client)
+
+    def remove_republish(self):
+        """
+        Un-republish this post. This should work on an instance of this post from any User. If this post is not republished, nothing will happen.
+
+        :returns: self
+        :rtype: Post
+        """
+        response = requests.delete(f"{self._url}/republished", headers = self.client.headers)
+
+        if response.status_code == 403:
+            return self
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        return self
+
 
     # public generators
 
@@ -661,7 +861,7 @@ class Post(ObjectMixin):
     @property
     def is_original(self):
         """
-        :returns: True if this post is OC
+        :returns: it this post original?
         :rtype: bool
         """
         return self.source is None
@@ -669,7 +869,7 @@ class Post(ObjectMixin):
     @property
     def is_featured(self):
         """
-        :returns: True if this post is featured
+        :returns: has this post been featured?
         :rtype: bool
         """
         return self._get_prop("is_featured")
@@ -677,7 +877,7 @@ class Post(ObjectMixin):
     @property
     def is_pinned(self):
         """
-        :returns: True if this post is pinned on it's authors profile
+        :returns: is this post pinned on it's authors profile?
         :rtype: bool
         """
         return self._get_prop("is_pinned")
@@ -685,7 +885,7 @@ class Post(ObjectMixin):
     @property
     def is_abused(self):
         """
-        :returns: True if this post was removed by moderators
+        :returns: was this post removed by moderators?
         :rtype: bool
         """
         return self._get_prop("is_abused")
@@ -725,7 +925,7 @@ class Post(ObjectMixin):
     @property
     def boostable(self):
         """
-        :returns: True if this post is able to be boosted
+        :returns: can this post be boosted?
         :rtype: bool
         """
         return self._get_prop("can_be_boosted")
@@ -767,7 +967,7 @@ class Post(ObjectMixin):
     @property
     def is_republished(self):
         """
-        :returns: True if this pic is republished by the attached client
+        :returns: is this post a republication?
         :rtype: bool
         """
         return self._get_prop("is_republished")
@@ -775,7 +975,7 @@ class Post(ObjectMixin):
     @property
     def smiled(self):
         """
-        :returns: True if this pic is smiled by the attached client
+        :returns: did I smile this post?
         :rtype: bool
         """
         return self._get_prop("is_smiled")
@@ -783,18 +983,28 @@ class Post(ObjectMixin):
     @property
     def unsmiled(self):
         """
-        :returns: True if this pic is unsmiled by the attached client
+        :returns: did I unsmile this post?
         :rtype: bool
         """
         return self._get_prop("is_unsmiled")
 
 class Comment(CommentMixin):
     """
-    Ifunny Comment object.
-    Params taken from parent class CommentMixin
+    iFunny Comment object
+
+    :param id: id of the comment
+    :param client: Client that the comment belongs to
+    :param data: A data payload for the comment to pull from before requests
+    :param paginated_size: number of items to get for each paginated request. If above the call type's maximum, that will be used instead
+
+    :type id: str
+    :type client: Client
+    :type data: dict
+    :type paginated_size: int
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.__cid = None
 
         if self._post == None and self._account_data_payload["cid"] == None:
             raise Exception("This needs a post")
@@ -817,7 +1027,7 @@ class Comment(CommentMixin):
 
         items = [Comment(item["id"], self.client, data = item, post = self.cid, root = self.id) for item in data["items"]]
 
-        return format_paginated(data, items)
+        return paginated_format(data, items)
 
     # public methods
 
@@ -955,7 +1165,7 @@ class Comment(CommentMixin):
     @property
     def is_root(self):
         """
-        :returns: True if this comment has been edited
+        :returns: is this comment a top level (root) comment?
         :rtype: bool
         """
         return not self._get_prop("is_reply")
@@ -963,7 +1173,7 @@ class Comment(CommentMixin):
     @property
     def is_deleted(self):
         """
-        :returns: True if this comment has been deleted
+        :returns: has this comment been deleted?
         :rtype: bool
         """
         value = self._get_prop("is_deleted")
@@ -972,7 +1182,7 @@ class Comment(CommentMixin):
     @property
     def is_edited(self):
         """
-        :returns: True if this comment has been edited
+        :returns: has this comment been deleted?
         :rtype: bool
         """
         return self._get_prop("is_edited")
@@ -1008,7 +1218,7 @@ class Comment(CommentMixin):
     @property
     def is_smiled(self):
         """
-        :returns: True if this comment is smile by the attached client
+        :returns: did I smile this comment?
         :rtype: bool
         """
         return self._get_prop("is_smiled")
@@ -1016,262 +1226,88 @@ class Comment(CommentMixin):
     @property
     def is_unsmiled(self):
         """
-        :returns: True if this comment is unsmiled by the attached client
+        :returns: did I unsmile this comment?
         :rtype: bool
         """
         return self._get_prop("is_unsmiled")
 
-class Channel(SendbirdMixin):
+class Notification:
     """
-    Sendbird messagable channel.
-    Docs in progress
-    """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.channel_url = self.id
-        self._url = f"{self.client.sendbird_api}/group_channels/{self.id}/"
+    General purpose notification object.
+    Used to represent any notification recieved by a client
 
-    def join(self):
-        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}/members", headers = self.client.headers)
-
-        return True if response.status_code == 200 else False
-
-    def send_message(self, message):
-        message_data = {
-            "channel_url"   : self.channel_url,
-            "message"       : message
-        }
-
-        response = self.client.socket.send(f"MESG{json.dumps(message_data, separators = (',', ':'))}\n")
-
-    def send_file_url(self, image_url, width = 780, height = 780):
-        lower_ratio = min([width / height, height / width])
-        type = "tall" if height >= width else "wide"
-        mime = determine_mime(image_url)
-
-        response_data = {
-            "channel_url"   : self.channel_url,
-            "name"          : f"botimage",
-            "req_id"        : str(int(round(time.time() * 1000))),
-            "type"          : mime,
-            "url"           : image_url,
-            "thumbnails"    : [
-                {
-                    "url"           : image_url,
-                    "real_height"   : int(780 if type == "tall" else 780 * lower_ratio),
-                    "real_width"    : int(780 if type == "wide" else 780 * lower_ratio),
-                    "height"        : width,
-                    "width"         : height,
-                }
-            ]
-        }
-
-        return self.client.socket.send(f"FILE{json.dumps(response_data, separators = (',', ':'))}\n")
-
-class Message:
-    """
-    Sendbird message object. Spawned when a message is recieved.
-
-    :param data: message json, data after prefix in a sendbird websocket response
-    :param client: client that the object belongs to
+    :param data: iFunny api response that makes up the data
+    :param client: iFunny client that the notification belongs to
 
     :type data: dict
     :type client: Client
     """
     def __init__(self, data, client):
         self.client = client
+        self.type = data["type"]
+
         self.__data = data
 
-        self.__message = None
-        self.__channel_url = None
-        self.__channel = None
-
-    def __repr__(self):
-        return self.content
-
     @property
-    def channel(self):
+    def user(self):
         """
-        :returns: Channel that this message exists in
-        :rtype: Channel
-        """
-        if not self.__channel:
-            self.__channel = Channel(self.channel_url, self.client)
-
-        return self.__channel
-
-    @property
-    def content(self):
-        """
-        :returns: String content of the message
-        :rtype: str
-        """
-        if not self.__message:
-            self.__message = self.__data["message"]
-
-        return self.__message
-
-    @property
-    def channel_url(self):
-        """
-        :returns: channel url for this messages channel
-        :rtype: str
-        """
-        if not self.__channel_url:
-            self.__channel_url = self.__data["channel_url"]
-
-        return self.__channel_url
-
-    @property
-    def send(self):
-        """
-        :returns: the send() method of this messages channel for easy replies
-        :rtype: function
-        """
-        return self.channel.send_message
-
-    @property
-    def send_file_url(self):
-        """
-        :retunrs: the send_file_url() method of this messages channel for easy replies
-        :rtype: function
-        """
-        return self.channel.send_file_url
-
-class Invite:
-    """
-    Message invitation class. Spawned when an imcomming Channel is recieved
-
-    :param data: channel json, data after prefix in a sendbird websocket response
-    :param client: client that the object belongs to
-
-    :type data: dict
-    :type client: Client
-    """
-
-    _status_codes = {
-        10000: "accepted",
-        10020: "new",
-        10022: "rejected"
-    }
-
-    def __init__(self, data, client):
-        self.client = client
-        self.__data = data
-
-        self.__channel = None
-        self.__channel_url = None
-        self.__inviter = None
-        self.__invitees = None
-        self.__url = None
-
-    def accept(self):
-        """
-        Accept an incomming invitation, if it is from a user.
-        If it is not, the method will return nothing.
-
-        :returns: Channel that was joined, or None
-        :rtype: Channel, or None
-        """
-        if not self.inviter:
-            return None
-
-        headers = self.client.sendbird_headers
-
-        data = json.dumps({
-            "user_id": self.client.id
-        })
-
-        response = requests.put(f"{self.url}/accept", headers = headers, data = data)
-
-        if response.status_code != 200:
-            raise Exception(response.text)
-
-        data = response.json()
-        return self.channel
-
-    def decline(self):
-        """
-        Decline an incomming invitation, if it is from a user.
-        If it is not, the method will return nothing.
-        """
-        if not self.inviter:
-            return None
-
-        headers = self.client.sendbird_headers
-
-        data = json.dumps({
-            "user_id": self.client.id
-        })
-
-        response = requests.put(f"{self.url}/decline", headers = headers, data = data)
-
-    @property
-    def url(self):
-        """
-        :retunrs: the request url to the incomming Channel
-        :rtype: str
-        """
-        if not self.__url:
-            self.__url = f"{self.client.sendbird_api}/group_channels/{self.channel_url}"
-
-        return self.__url
-
-    @property
-    def channel_url(self):
-        """
-        :retunrs: the url to the incomming Channel
-        :rtype: str
-        """
-        if not self.__channel_url:
-            self.__channel_url = self.__data["channel_url"]
-
-        return self.__channel_url
-
-    @property
-    def channel(self):
-        """
-        :retunrs: the incomming Channel
-        :rtype: Channel
-        """
-        if not self.__channel:
-            self.__channel = Channel(self.channel_url, self.client)
-
-        return self.__channel
-
-    @property
-    def inviter(self):
-        """
-        :retunrs: the user who dispatched an invite to this group, or None
+        :returns: the user attatched to a notification, usually the one who triggered it.
         :rtype: User, or None
         """
-        if not self.__inviter:
-            inviter = self.__data["data"]["inviter"]
+        data = self.__data.get("user")
 
-            if not inviter:
-                self.__inviter = None
-                return self.__inviter
+        if not data:
+            return None
 
-            self.__inviter = User(inviter["user_id"], self.client)
-
-        return self.__inviter
+        return User(data["id"], self.client, data = data)
 
     @property
-    def invitees(self):
+    def post(self):
         """
-        :returns: the users who were invited with this instance of an incomming Channel
-        :rtype: list<User>, or None
+        :returns: the post attatched to a notification.
+        :rtype: Post, or None
         """
-        if not self.__invitees:
-            invitees = self.__data["data"]["invitees"]
-            self.__invitees = [User(user["user_id"], self.client) for user in invitees]
+        data = self.__data.get("content")
 
-        return self.__invitees
+        if not data:
+            return None
+
+        return Post(data["id"], self.client, data = data)
 
     @property
-    def status(self):
+    def comment(self):
         """
-        :returns: the status of the incomming channel data
-        :rtype: str
+        :returns: the comment (root comment or reply) attatched to a notification
+        :rtype: Comment, or None
         """
-        return self._status_codes.get(self.__data["cat"], f"unknown: {self.__data['cat']}")
+        if self.type == "reply_for_comment":
+            data = self.__data.get("reply")
+        else:
+            data = self.__data.get("comment")
+
+        if not data:
+            return None
+
+        post = self.__data["content"]["id"]
+
+        if self.type == "reply_for_comment":
+            root = self.__data["comment"]["id"]
+            return Comment(data["id"], self.client, data = data, post = post, root = root)
+
+        return Comment(data["id"], self.client, data = data, post = post)
+
+    @property
+    def created_at(self):
+        """
+        :returns: time at which the notification was created
+        :rtype: time in seconds
+        """
+        return self.__data.get("date")
+
+    @property
+    def smile_count(self):
+        """
+        :returns: smile count, if self.type is "smile_tracker"
+        :rtype: int, or None
+        """
+        return self.__data.get("smiles")

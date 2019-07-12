@@ -1,3 +1,1 @@
-from ifunny import client, handler
-
-Client = client.Client
+from ifunny.client import Client

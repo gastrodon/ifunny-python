@@ -1,22 +1,42 @@
-client
+Client
 ------
 
-.. automodule:: ifunny.client
+.. autoclass:: ifunny.Client
     :members:
     :undoc-members:
     :exclude-members: api, sendbird_api, commands
 
-notifications
--------------
+User
+----
 
-.. automodule:: ifunny.notifications
+.. autoclass:: ifunny.objects.User
     :members:
     :undoc-members:
-    :exclude-members: Channel, Message
 
-objects
+Post
+----
+
+.. autoclass:: ifunny.objects.Post
+    :members:
+    :undoc-members:
+
+Comment
 -------
 
-.. automodule:: ifunny.objects
+.. autoclass:: ifunny.objects.Comment
+    :members:
+    :undoc-members:
+
+Channel
+-------
+
+.. autoclass:: ifunny.objects.Channel
+    :members:
+    :undoc-members:
+
+IncomingChannel
+---------------
+
+.. autoclass:: ifunny.objects.IncomingChannel
     :members:
     :undoc-members:

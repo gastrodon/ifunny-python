@@ -47,7 +47,7 @@ A simple echo bot might look like this::
 There's still much more to do, so feel free to create a pull. If you want to find me, my discord is Zero#5200. You can also join a guild with me `here <https://discordapp.com/invite/h3ZnhRM>`_.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
    :caption: Contents:
 
    code

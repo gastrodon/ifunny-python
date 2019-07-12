@@ -1,21 +1,21 @@
-import json, os, requests, threading, time
+import json, os, threading, time
+import requests
 
 from random import random
 from hashlib import sha1
 from base64 import b64encode
 
-from ifunny.handler import Handler, Event
-from ifunny.commands import Command, Defaults
-from ifunny.sendbird import Socket
-from ifunny.notifications import Notification
-from ifunny.objects import User, Channel
-from ifunny.utils import format_paginated, paginated_data, paginated_generator
+from ifunny.client._handler import Handler, Event
+from ifunny.client._commands import Command, Defaults
+from ifunny.client._sendbird import Socket
+from ifunny.objects import User, Channel, Notification
+from ifunny.util.methods import paginated_format, paginated_data, paginated_generator
 
 class Client:
     """
     iFunny client used to do most things.
 
-    :param trace: True to enable socket trace for debugging
+    :param trace: enable websocket_client trace? (debug)
     :param threaded: False to have all socket callbacks run in the same thread for debugging
     :param prefix: Static string or callable prefix for chat commands
     :param paginated_size: Number of items to request in paginated methods
@@ -107,7 +107,7 @@ class Client:
 
         items = [Notification(item, self) for item in data["items"]]
 
-        return format_paginated(data, items)
+        return paginated_format(data, items)
 
     def _channels_paginated(self, limit = 100, next = None, prev = None, show_empty = True, show_read_recipt = True, show_member = True, public_mode = "all", super_mode = "all", distinct_mode = "all", member_state_filter = "all", order = "latest_last_message"):
         limit = min(limit, 100)
@@ -207,7 +207,7 @@ class Client:
 
         :param email: Email associated with the account
         :param password: Password associated with the account
-        :param force: True to ignore saved Bearer tokens
+        :param force: Ignore saved Bearer tokens?
 
         :type email: str
         :type password: str
@@ -223,7 +223,7 @@ class Client:
 
             if response.status_code == 200:
                 self.authenticated = True
-                return
+                return self
 
         headers = {
             "Authorization": f"Basic {self.__login_token}"
@@ -249,6 +249,7 @@ class Client:
         self.__config[f"{email}_token"] = self.__token
 
         self.__update_config()
+        return self
 
     def post_image(self, image_data: bytes, tags: list = [], visibility: str = "public"):
         """
@@ -297,7 +298,7 @@ class Client:
 
     def start_chat(self):
         """
-        Start the chat websocket connection
+        Start the chat websocket connection.
 
         :returns: this client's socket object
         :rtype: Socket
@@ -311,6 +312,15 @@ class Client:
             self.messenger_token = self.__account_data["messenger_token"]
 
         return self.socket.start()
+
+    def stop_chat(self):
+        """
+        Stop the chat websocket connection.
+
+        :returns: this client's socket object
+        :rtype: Socket
+        """
+        return self.socket.stop()
 
     def sendbird_upload(self, channel, file_data):
         """
@@ -512,7 +522,7 @@ class Client:
     @property
     def nick(self):
         """
-        :returns: this client's username (``nick``\ name)
+        :returns: this client's username (``nick`` name)
         :rtype: str
         """
         return self._get_prop("nick")

@@ -20,7 +20,7 @@ def determine_mime(url, bias = "image/png"):
 def invalid_type(name, type, valid):
     return Exception(f"{name} must be of type {', '.join(valid)}, not {type}")
 
-def format_paginated(data, items):
+def paginated_format(data, items):
     paging = paging = {
         "prev":     data["paging"]["cursors"]["prev"] if data["paging"]["hasPrev"] else None,
         "next":     data["paging"]["cursors"]["next"] if data["paging"]["hasNext"] else None
@@ -64,3 +64,11 @@ def paginated_generator(source):
             break
 
         buffer = source(next = buffer["paging"]["next"])
+
+def get_slice(source, query):
+    index = source.find(query)
+
+    if index == -1:
+        return None
+
+    return f"{index}:{index + len(query) - 1}"
