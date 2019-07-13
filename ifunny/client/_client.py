@@ -252,7 +252,27 @@ class Client:
         self.__update_config()
         return self
 
-    def post_image(self, image_data: bytes, tags: list = [], visibility: str = "public"):
+    def post_image_url(self, image_url, tags = [], visibility = "public"):
+        """
+        Post an image from a url to iFunny
+
+        :param image_url: location image to post
+        :param tags: list of searchable tags
+        :param visibility: visibility of the post on iFunny
+
+        :type image_data: bytes
+        :type tags: list<str>
+        :type visibility: str
+
+        :returns: True if successfuly posted (POST response is 202) else False
+        :rtype: bool
+        """
+
+        image_data = requests.get(image_url).content
+
+        return self.post_image(image_data, tags = tags, visibility = visibility)
+
+    def post_image(self, image_data, tags = [], visibility = "public"):
         """
         Post an image to iFunny
 

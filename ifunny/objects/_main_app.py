@@ -1,6 +1,9 @@
 import requests, json
+
+from urllib.parse import quote_plus as urlencode
+
 from ifunny.util.methods import invalid_type, paginated_format, paginated_data, paginated_generator, get_slice
-from ifunny.util.exceptions import NoContent, TooManyMentions, BadAPIResponse, FailedToComment
+from ifunny.util.exceptions import NoContent, TooManyMentions, BadAPIResponse, FailedToComment, NotOwnContent, OwnContent
 
 class ObjectMixin:
     """
@@ -210,7 +213,7 @@ class User(ObjectMixin):
         if response.status_code != 200:
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
     def unsubscribe(self):
         """
@@ -251,11 +254,11 @@ class User(ObjectMixin):
 
         if response.status_code != 200:
             if response.json().get("error") == "already_blocked":
-                return self
+                return self.fresh
 
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
     def unblock(self):
         """
@@ -298,7 +301,7 @@ class User(ObjectMixin):
         valid = ["hate", "nude", "spam", "target", "harm"]
 
         if type not in valid:
-            raise invalid_type("type", type, valid)
+            raise TypeError(f"type must be one of {', '.join(valid)}, not {type}")
 
         params = {
             "type": type
@@ -309,7 +312,7 @@ class User(ObjectMixin):
         if response.status_code != 200:
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
     def subscribe_to_updates(self):
         """
@@ -323,7 +326,7 @@ class User(ObjectMixin):
         if response.status_code != 200:
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
     def unsubscribe_to_updates(self):
         """
@@ -337,7 +340,7 @@ class User(ObjectMixin):
         if response.status_code != 200:
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
     # public generators
 
@@ -652,7 +655,7 @@ class Post(ObjectMixin):
                 post = Post(post, self.client)
 
             if post.author != self.client.user:
-                raise NotOwnPost("Users can only add ther own posts to a meme")
+                raise NotOwnContent("Users can only add ther own posts to a meme")
 
             data["content"] = post.id
 
@@ -672,7 +675,7 @@ class Post(ObjectMixin):
 
     def smile(self):
         """
-        Smile a Post. If already smiled, nothing will happen.
+        smile a post. If already smiled, nothing will happen.
 
         :returns: self
         :rtype: Post
@@ -682,7 +685,7 @@ class Post(ObjectMixin):
         if response.status_code != 200 and response.status_code != 403:
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
     def remove_smile(self):
         """
@@ -696,11 +699,11 @@ class Post(ObjectMixin):
         if response.status_code != 200 and response.status_code != 403:
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
     def unsmile(self):
         """
-        Unsmile a Post. If already unsmiled, nothing will happen.
+        Unsmile a post. If already unsmiled, nothing will happen.
 
         :returns: self
         :rtype: Post
@@ -710,7 +713,7 @@ class Post(ObjectMixin):
         if response.status_code != 200 and response.status_code != 403:
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
     def remove_unsmile(self):
         """
@@ -724,7 +727,7 @@ class Post(ObjectMixin):
         if response.status_code != 200 and response.status_code != 403:
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
     def republish(self):
         """
@@ -758,8 +761,121 @@ class Post(ObjectMixin):
         if response.status_code != 200:
             raise BadAPIResponse(response.text)
 
-        return self
+        return self.fresh
 
+    def report(self, type):
+        """
+        Report a post.
+
+        :param type: Reason for report \n
+            hate   -> hate speech \n
+            nude   -> nudity \n
+            spam   -> spam posting \n
+            target -> targeted harrassment \n
+            harm   -> encouraging harm or violence
+
+        :type type: str
+
+        :returns: self
+
+        :rtype: Post
+        """
+        valid = ["hate", "nude", "spam", "target", "harm"]
+
+        if self.author == self.client.user:
+            raise OwnContent("Client can't report their own content")
+
+        if type not in valid:
+            raise TypeError(f"type must be one of {', '.join(valid)}, not {type}")
+
+        params = {
+            "type": type
+        }
+
+        response = requests.put(f"{self._url}/abuses", headers = self.client.headers, params = params)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        return self.fresh
+
+    def set_tags(self, tags):
+        """
+        Set the tags on your own post. If the post is not owned by the client, NotOwnContent exception is raised
+        Tags cannot include space characters, so those will be replace dropped
+
+        :param tags: list of tags to add to set
+
+        :type tags: list<str>
+
+        :returns: self
+
+        :rtype: Post
+
+        :raises: NotOwnContent
+        """
+
+        if self.author != self.client.user:
+            raise NotOwnContent(f"Post must belong to the client, but belongs to {self.author.nick}")
+
+        tags = ",".join([f"\"{tag.replace(' ', '')}\"" for tag in tags])
+
+        data = f"tags=[{tags}]"
+
+        response = requests.put(f"{self._url}/tags", headers = self.client.headers, data = data)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        return self.fresh
+
+    def delete(self):
+        """
+        Delete a post owned by the Client
+
+        :retunrs: self
+
+        :rtype: Post
+        """
+
+        response = requests.delete(self._url, headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(self.text)
+
+        return self.fresh
+
+    def pin(self):
+        """
+        Pin a post to the client user
+
+        :returns: self
+
+        :rtype: Post
+        """
+
+        response = requests.put(f"{self._url}/pinned", headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        return self.fresh
+
+    def unpin(self):
+        """
+        Unpin a post to the client user
+
+        :returns: self
+
+        :rtype: Post
+        """
+
+        response = requests.delete(f"{self._url}/pinned", headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        return self.fresh
 
     # public generators
 
@@ -1009,7 +1125,9 @@ class Comment(CommentMixin):
         if self._post == None and self._account_data_payload["cid"] == None:
             raise BadAPIResponse("This needs a post")
 
-        self._url = f"{self.client.api}/content/{self.cid}/comments" if not self._root else f"{self.client.api}/content/{self.cid}/comments/{self._root}/replies"
+        self._absolute_url = f"{self.client.api}/content/{self.cid}/comments"
+
+        self._url = self._absolute_url if not self._root else f"{self.client.api}/content/{self.cid}/comments/{self._root}/replies"
 
     def __repr__(self):
         return self.content
@@ -1031,16 +1149,162 @@ class Comment(CommentMixin):
 
     # public methods
 
+    def reply(self, text = None, post = None, user_mentions = None):
+        """
+        Reply to a comment.
+        At least one of the parameters must be used, as users shoud not post empty replys.
+
+        :param text: Text of the reply, if any
+        :param post: Post to post in the reply, if any. Can be a post id or a Post object, but the Post in reference must belong to the client creating the reply
+        :param user_mentions: Users to mention, if any. Mentioned users must have their nick in the reply, and will be mentioned at the first occurance of their nick
+
+        :type text: str
+        :type post: Post or str
+        :type user_mentions: list<User>
+
+        :returns: the posted reply
+        :rtype: Comment
+        """
+
+        if not any((text, post, user_mentions)):
+            raise NoContent("Must have at least one of (text, post, user_mentions)")
+
+        data = {}
+
+        if text:
+            data["text"] = str(text)
+
+        if user_mentions:
+            if any([user.nick not in text for user in user_mentions]):
+                raise TooManyMentions("Not all user mentions are included in the text")
+
+            formatted = [":".join([user.id, get_slice(text, user.nick)]) for user in user_mentions]
+            data["user_mentions"] = ";".join(formatted)
+
+        if post:
+            if isinstance(post, str):
+                post = Post(post, self.client)
+
+            if post.author != self.client.user:
+                raise NotOwnContent("Users can only add ther own posts to a meme")
+
+            data["content"] = post.id
+
+        response = requests.post(f"{self._url}/{self.id}/replies", data = data, headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        response = response.json()
+
+        if response["data"]["id"] == "000000000000000000000000":
+            #raise FailedToComment(f"Failed to add the comment {text}")
+            print(f"Failed to add the comment {text}. Are you posting the same comment too fast?")
+            return response
+
+        return Comment(response["data"]["id"], self.client, data = response["data"]["comment"])
+
     def delete(self):
         """
-        Delete a comment belonging to you or on your post.
+        Delete a comment
 
-        :returns: True if the post was deleted (if the POST response was 200), else False
-        :rtype: bool
+        :returns: self
+
+        :rtype: Comment
         """
-        response = requests.delete(f"{self._url}/{self.id}", headers = self.client.headers)
 
-        return response.status_code == 200
+        response = requests.delete(f"{self._absolute_url}/{self.id}", headers = self.client.headers)
+
+        return self
+
+    def smile(self):
+        """
+        smile a comment. If already smiled, nothing will happen.
+
+        :returns: self
+        :rtype: Comment
+        """
+        response = requests.put(f"{self._absolute_url}/{self.id}/smiles", headers = self.client.headers)
+
+        if response.status_code != 200 and response.status_code != 403:
+            raise BadAPIResponse(response.text)
+
+        return self.fresh
+
+    def remove_smile(self):
+        """
+        Remove a smile from a comment. If none exists, nothing will happen.
+
+        :returns: self
+        :rtype: Comment
+        """
+        response = requests.delete(f"{self._absolute_url}/{self.id}/smiles", headers = self.client.headers)
+
+        if response.status_code != 200 and response.status_code != 403:
+            raise BadAPIResponse(response.text)
+
+        return self.fresh
+
+    def unsmile(self):
+        """
+        Unsmile a comment. If already unsmiled, nothing will happen.
+
+        :returns: self
+        :rtype: Comment
+        """
+        response = requests.put(f"{self._absolute_url}/{self.id}/unsmiles", headers = self.client.headers)
+
+        if response.status_code != 200 and response.status_code != 403:
+            raise BadAPIResponse(response.text)
+
+        return self.fresh
+
+    def remove_unsmile(self):
+        """
+        Remove an unsmile from a comment. If none exists, nothing will happen.
+
+        :returns: self
+        :rtype: Comment
+        """
+        response = requests.delete(f"{self._absolute_url}/{self.id}/unsmiles", headers = self.client.headers)
+
+        if response.status_code != 200 and response.status_code != 403:
+            raise BadAPIResponse(response.text)
+
+        return self.fresh
+
+    def report(self, type):
+        """
+        Report a comment.
+
+        :param type: Reason for report \n
+            hate   -> hate speech \n
+            nude   -> nudity \n
+            spam   -> spam posting \n
+            target -> targeted harrassment \n
+            harm   -> encouraging harm or violence
+
+        :type type: str
+
+        :returns: self
+
+        :rtype: User
+        """
+        valid = ["hate", "nude", "spam", "target", "harm"]
+
+        if type not in valid:
+            raise TypeError(f"type must be one of {', '.join(valid)}, not {type}")
+
+        params = {
+            "type": type
+        }
+
+        response = requests.put(f"{self._absolute_url}/{self.id}/abuses", headers = self.client.headers, params = params)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(response.text)
+
+        return self.fresh
 
     # public generators
 

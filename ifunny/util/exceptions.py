@@ -14,7 +14,11 @@ class TooManyMentions(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-class NotOwnPost(Exception):
+class NotOwnContent(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class OwnContent(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
