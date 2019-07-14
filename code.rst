@@ -34,9 +34,9 @@ Channel
     :members:
     :undoc-members:
 
-IncomingChannel
+ChannelInvite
 ---------------
 
-.. autoclass:: ifunny.objects.IncomingChannel
+.. autoclass:: ifunny.objects.ChannelInvite
     :members:
     :undoc-members:

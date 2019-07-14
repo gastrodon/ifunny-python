@@ -1,8 +1,8 @@
 import json, time, requests
 from ifunny.util.methods import determine_mime
-from ifunny.util.exceptions import ChatNotActive
+from ifunny.util.exceptions import ChatNotActive, NotOwnContent
 
-from ifunny.objects._main_app import ObjectMixin
+from ifunny.objects._main_app import ObjectMixin, User
 
 class SendbirdMixin(ObjectMixin):
     """
@@ -152,12 +152,42 @@ class Message:
         self.client = client
         self.__data = data
 
-        self.__message = None
         self.__channel_url = None
         self.__channel = None
+        self.__author = None
 
     def __repr__(self):
         return self.content
+
+    def delete():
+        """
+        Delete a message sent by the client. This is exparamental, and may not work
+
+        :returns: self
+        :rtype: Message
+        """
+        if self.author != self.client.user:
+            raise NotOwnContent("You cannot delete a message that does not belong to you")
+
+        requests.delete(self._url)
+
+        return self
+
+
+    @property
+    def _url(self):
+        return f"{self.client.sendbird_api}/v3/group_channels/{self.channel_url}/messages/{self.id}"
+
+    @property
+    def author(self):
+        if not self.__author:
+            if not self.__data.get("user"):
+                self.__author = None
+                return self.__author
+
+            self.__author = User(self.__data["user"]["guest_id"], self.client)
+
+        return self.__author
 
     @property
     def channel(self):
@@ -176,10 +206,7 @@ class Message:
         :returns: String content of the message
         :rtype: str
         """
-        if not self.__message:
-            self.__message = self.__data["message"]
-
-        return self.__message
+        return self.__data["message"]
 
     @property
     def channel_url(self):
@@ -187,10 +214,7 @@ class Message:
         :returns: channel url for this messages channel
         :rtype: str
         """
-        if not self.__channel_url:
-            self.__channel_url = self.__data["channel_url"]
-
-        return self.__channel_url
+        return self.__data["channel_url"]
 
     @property
     def send(self):
@@ -208,10 +232,26 @@ class Message:
         """
         return self.channel.send_image_url
 
-class IncomingChannel:
+    @property
+    def id(self):
+        """
+        :returns: channel id
+        :rtype: str
+        """
+        return self.__data["msg_id"]
+
+    @property
+    def type(self):
+        """
+        :returns: type of channel (though it appears the only possible value is ``group``)
+        :rtype: str
+        """
+        return self.__data["channel_type"]
+
+class ChannelInvite:
     """
-    Incoming Channel class.
-    Created when an imcomming Channel is recieved from the chat websocket.
+    Channel update class.
+    Created when an Channel update is recieved from the chat websocket.
 
     :param data: channel json, data after prefix in a sendbird websocket response
     :param client: client that the object belongs to
@@ -222,12 +262,13 @@ class IncomingChannel:
 
     _status_codes = {
         10000: "accepted",
-        10020: "new",
+        10020: "invite",
         10022: "rejected"
     }
 
     def __init__(self, data, client):
         self.client = client
+        self.debug = data
         self.__data = data
 
         self.__channel = None
@@ -244,7 +285,7 @@ class IncomingChannel:
         :returns: Channel that was joined, or None
         :rtype: Channel, or None
         """
-        if not self.inviter:
+        if not self.inviter or self.client not in self.invitees:
             return None
 
         headers = self.client.sendbird_headers
@@ -266,7 +307,7 @@ class IncomingChannel:
         Decline an incoming invitation, if it is from a user.
         If it is not, the method will do nothing and return None.
         """
-        if not self.inviter:
+        if not self.inviter or self.client not in self.invitees:
             return None
 
         headers = self.client.sendbird_headers
@@ -313,7 +354,7 @@ class IncomingChannel:
     @property
     def inviter(self):
         """
-        :retunrs: the user who dispatched an invite to this group, or None
+        :retunrs: if this update is an invite, returns the inviter
         :rtype: User, or None
         """
         if not self.__inviter:
@@ -330,7 +371,7 @@ class IncomingChannel:
     @property
     def invitees(self):
         """
-        :returns: the users who were invited with this instance of an incoming Channel
+        :retunrs: if this update is an invite, returns the invitees
         :rtype: list<User>, or None
         """
         if not self.__invitees:
@@ -340,9 +381,9 @@ class IncomingChannel:
         return self.__invitees
 
     @property
-    def status(self):
+    def type(self):
         """
-        :returns: the status of the incoming channel data
+        :returns: the type of the incoming channel data
         :rtype: str
         """
         return self._status_codes.get(self.__data["cat"], f"unknown: {self.__data['cat']}")

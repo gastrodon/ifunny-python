@@ -11,4 +11,4 @@ This project has been solo so far, though pull requests are encouraged. Document
 Read the [docs](https://ifunny.readthedocs.io/en/latest/) for more on that
 
 # Contributing
-With a pull request would be great
+With a pull request would be great. If you want to see the projects progress and goals, there is a public [trello board](https://trello.com/b/EAmTwEbe/ifunny)

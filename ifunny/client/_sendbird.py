@@ -15,7 +15,10 @@ class Socket:
         return
 
     def on_close(self):
-        return
+        if not self.threaded:
+            return self.client.handler._on_disconnect()
+
+        threading.Thread(target = self.client.handler._on_disconnect).start()
 
     def on_ping(self, data):
         return

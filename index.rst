@@ -3,13 +3,14 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to iFunny's documentation!
-==================================
+iFunny python interface
+=======================
 
 
 Requirements:
     - requests
     - websocket-client
+    - Python 2.7+
 
 This is a python library aiming to interface with python. To learn more about the project, and to view it's code, check it out on `github <https://github.com/basswaver/ifunny>`_.
 
