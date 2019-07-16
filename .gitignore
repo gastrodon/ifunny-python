@@ -3,6 +3,7 @@ ignore
 __py*
 venv*
 test.*
+cogtest.*
 
 _build
 _static

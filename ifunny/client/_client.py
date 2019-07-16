@@ -4,13 +4,14 @@ import requests
 from random import random
 from hashlib import sha1
 from base64 import b64encode
+from importlib import import_module
 
 from ifunny.client._handler import Handler, Event
-from ifunny.client._commands import Command, Defaults
+from ifunny.ext.commands import Command, Defaults, Cog
 from ifunny.client._sendbird import Socket
 from ifunny.objects import User, Channel, Notification
 from ifunny.util.methods import paginated_format, paginated_data, paginated_generator
-from ifunny.util.exceptions import ChatAlreadyActive, BadAPIResponse
+from ifunny.util.exceptions import ChatAlreadyActive, BadAPIResponse, CogError
 
 class Client:
     """
@@ -35,6 +36,8 @@ class Client:
     commands = {
         "help" : Defaults.help
     }
+
+    cogs = {}
 
     def __init__(self, trace = False, threaded = True, prefix = {""}, paginated_size = 25):
         # command

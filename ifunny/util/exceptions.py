@@ -37,3 +37,7 @@ class FailedToComment(Exception):
 class AlreadyAuthenticated(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+class CogError(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
