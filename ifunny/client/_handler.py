@@ -76,7 +76,6 @@ class Handler:
 
     def _on_invite(self, update):
         invite = ChannelInvite(update, self.client)
-        print(f"hook got {invite.invitees}")
         if self.client.user in invite.invitees:
             return self.get_ev("on_invite")(invite)
 

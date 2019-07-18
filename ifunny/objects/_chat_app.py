@@ -1,8 +1,59 @@
 import json, time, requests
 from ifunny.util.methods import determine_mime
-from ifunny.util.exceptions import ChatNotActive, NotOwnContent
+from ifunny.util.exceptions import ChatNotActive, NotOwnContent, BadAPIResponse
 
 from ifunny.objects._main_app import ObjectMixin, User
+
+class ChannelUser(User):
+    def __init__(self, id, client, channel, *args, sb_data = None, **kwargs):
+        super().__init__(id, client, *args, **kwargs)
+        self.channel = channel
+        self._sb_url = channel._url
+        self._sb_data_payload = sb_data
+
+    def _sb_prop(self, key, default = None, force = False):
+        if not self._sb_data.get(key, None) or force:
+            self._update = True
+
+        return self._sb_data.get(key, default)
+
+    @property
+    def _sb_data(self):
+        if self._update or self._sb_data_payload is None:
+            self._update = False
+
+            members = [member for member in self.channel._account_data.get("members") if member["user_id"] == self.id]
+
+            if not len(members):
+                members = [{}]
+
+            self._sb_data_payload = members[0]
+
+        return self._sb_data_payload
+
+    @property
+    def state(self):
+        """
+        :returns: Is this member invited (pending join), or joined?
+        :rtype: str
+        """
+        return self._sb_prop("state")
+
+    @property
+    def last_online(self):
+        """
+        :returns: timestamp of whne this user was last online
+        :rtype: int
+        """
+        return self._sb_prop("last_seen_at")
+
+    @property
+    def online(self):
+        """
+        :returns: is this user online?
+        :rtype: bool
+        """
+        return self._sb_prop("online")
 
 class SendbirdMixin(ObjectMixin):
     """
@@ -35,7 +86,7 @@ class SendbirdMixin(ObjectMixin):
             try:
                 self._account_data_payload = response.json()
             except KeyError:
-                raise BadAPIResponse(response.text)
+                raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self._account_data_payload
 
@@ -130,12 +181,116 @@ class Channel(SendbirdMixin):
         self.client.socket.send(f"FILE{json.dumps(response_data, separators = (',', ':'))}\n")
 
     @property
+    def _data(self):
+        _json = json.loads(self._get_prop("channel").get("data"))
+
+        if _json == "":
+            _json = {}
+
+        return _json
+
+    @property
     def send(self):
         """
         :returns: this classes send_message method
         :rtype: function
         """
         return self.send_message
+
+    @property
+    def members(self):
+        """
+        :retunrs: list of channel members, if group
+        :rtype: List<ChannelUser>, or None
+        """
+        data = self._get_prop("members")
+
+        if not data:
+            return None
+
+        return [ChannelUser(member["user_id"], self.client, self, sb_data = member) for member in data]
+
+    @property
+    def admins(self):
+        """
+        :retunrs: list of channel admins, if group
+        :rtype: List<ChannelUser>, or None
+        """
+        data = self._data.get("chatInfo", {}).get("adminsIdList")
+
+        if not data:
+            return None
+
+        return [ChannelUser(id, self.client, self) for id in data]
+
+    @property
+    def operators(self):
+        """
+        :retunrs: list of channel operators, if group
+        :rtype: List<ChannelUser>, or None
+        """
+        data = self._data.get("chatInfo", {}).get("operatorsIdList")
+
+        if not data:
+            return None
+
+        return [ChannelUser(id, self.client, self) for id in data]
+
+    @property
+    def name(self):
+        """
+        :retunrs: the name of this channel
+        :rtype: str
+        """
+        return self._get_prop("name")
+
+    @property
+    def created(self):
+        """
+        :returns: timestamp of this channels creation data
+        :rtype: int
+        """
+        return self._get_prop("created_at")
+
+    @property
+    def description(self):
+        """
+        :retunrs: admin defined description of the channel, if group
+        :rtype: str, or None
+        """
+        return self._data.get("chatInfo", {}).get("description")
+
+    @property
+    def frozen(self):
+        """
+        :retunrs: is this channel frozen? Assumes False if attribute cannot be queried
+        :rtype: bool
+        """
+        return self._get_prop("freeze", default = False)
+
+    @property
+    def type(self):
+        """
+        :returns: the type of this group. Can be ``opengroup``, ``chat``
+        :rtype: str
+        """
+        return self._get_prop("custom_type")
+
+    @property
+    def direct(self):
+        """
+        :retunrs: is this group a private message channel?
+        :rtype: bool
+        """
+        return self.type == "chat"
+
+    @property
+    def muted(self):
+        """
+        :retunrs: is this chat muted by the client?
+        :rtype: bool
+        """
+        return self._get_prop("is_muted")
 
 class Message:
     """
@@ -172,7 +327,6 @@ class Message:
         requests.delete(self._url)
 
         return self
-
 
     @property
     def _url(self):
@@ -297,7 +451,7 @@ class ChannelInvite:
         response = requests.put(f"{self.url}/accept", headers = headers, data = data)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         data = response.json()
         return self.channel

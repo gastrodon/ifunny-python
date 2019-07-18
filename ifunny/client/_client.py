@@ -5,13 +5,14 @@ from random import random
 from hashlib import sha1
 from base64 import b64encode
 from importlib import import_module
+from pathlib import Path
 
 from ifunny.client._handler import Handler, Event
-from ifunny.ext.commands import Command, Defaults, Cog
+from ifunny.ext.commands import Command, Defaults
 from ifunny.client._sendbird import Socket
 from ifunny.objects import User, Channel, Notification
 from ifunny.util.methods import paginated_format, paginated_data, paginated_generator
-from ifunny.util.exceptions import ChatAlreadyActive, BadAPIResponse, CogError
+from ifunny.util.exceptions import ChatAlreadyActive, BadAPIResponse, ChatNotActive
 
 class Client:
     """
@@ -71,7 +72,11 @@ class Client:
         self._update = False
 
         # cache file
-        self.__cache_path = f"{os.path.dirname(os.path.realpath(__file__))}/ifunny_config.json"
+        self.__home_path = f"{Path.home()}/.ifunnypy"
+        self.__cache_path = f"{self.__home_path}/config.json"
+
+        if not os.path.isdir(self.__home_path):
+            os.mkdir(self.__home_path)
 
         try:
             with open(self.__cache_path) as stream:
@@ -97,7 +102,7 @@ class Client:
 
         self.__config_lock.release()
 
-    def _get_prop(self, key: str, force: bool = False):
+    def _get_prop(self, key, force = False):
         if not self.__account_data.get(key, None) or force:
             self._update = True
 
@@ -134,7 +139,7 @@ class Client:
         response = requests.get(url, params = params, headers = self.sendbird_headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         response = response.json()
 
@@ -246,7 +251,7 @@ class Client:
             response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         self.__token = response.json()["access_token"]
         self.authenticated = True
@@ -372,7 +377,7 @@ class Client:
         response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.sendbird_headers, files = files, data = data)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return response.json()["url"]
 
@@ -593,3 +598,17 @@ class Client:
         :rtype: Generator<Notification>
         """
         return paginated_generator(self._notifications_paginated)
+
+    @property
+    def channels(self):
+        """
+        Generator for a CLient's chat channels.
+        Each iteration will return the next channel, in order of last message
+
+        :returns: generator iterating through channels
+        :rtype: Generator<Channel>
+        """
+        if not self.sendbird_session_key:
+            raise ChatNotActive("Chat must be started at least once to get a session key")
+
+        return paginated_generator(self._channels_paginated)

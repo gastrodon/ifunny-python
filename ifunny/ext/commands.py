@@ -27,17 +27,3 @@ class Defaults:
     help = Command(_help, "help")
 
     default = Command(_default, "default")
-
-class Cog:
-    bot = None
-    name = None
-    commands = {}
-
-    def command(cls, name = None):
-        """
-        Decorator to add a command to a cog. Works in the way as ``bot.command``
-        """
-        print(f"superclass got {cls}")
-        def _inner(method):
-            _name = name if name else method.__name__
-            self.commands[_name] = Command(method, _name, cog = self)
