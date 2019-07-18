@@ -305,6 +305,7 @@ class Message:
     """
     def __init__(self, data, client):
         self.client = client
+        self.invoked = None
         self.__data = data
 
         self.__channel_url = None

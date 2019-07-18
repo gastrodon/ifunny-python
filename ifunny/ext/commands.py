@@ -20,7 +20,8 @@ class Command:
         cog = cog
 
     def __call__(self, message, args):
-        return self.method(message, args)
+        self.method(message, args)
+        return self
 
 class Defaults:
 
