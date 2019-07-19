@@ -32,7 +32,7 @@ class Client:
     sendbird_api = "https://api-us-1.sendbird.com/v3"
     __client_id = "MsOIJ39Q28"
     __client_secret = "PTDc3H8a)Vi=UYap"
-    __user_agent = "iFunny/5.36(17704) Android/5.0.2 (samsung; SCH-R530U; samsung)"
+    __user_agent = "iFunny/5.38.1(1117733) Android/9 (OnePlus; ONEPLUS A6013; OnePlus)"
 
     commands = {
         "help" : Defaults.help
@@ -164,7 +164,7 @@ class Client:
         :rtype: dict
         """
         _headers = {
-            "User-Agent": "jand/3.055"
+            "User-Agent": "jand/3.096"
         }
 
         if self.sendbird_session_key:
@@ -183,7 +183,7 @@ class Client:
         if self.__config.get("login_token"):
             return self.__config["login_token"]
 
-        hex_string = os.urandom(32).hex().upper()
+        hex_string = os.urandom(36).hex().upper()
         hex_id = f"{hex_string}_{self.__client_id}"
         hash_decoded = f"{hex_string}:{self.__client_id}:{self.__client_secret}"
         hash_encoded = sha1(hash_decoded.encode('utf-8')).hexdigest()
