@@ -50,7 +50,7 @@ class ObjectMixin:
             try:
                 self._account_data_payload = response.json()["data"]
             except KeyError:
-                raise BadAPIResponse(response.text)
+                raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self._account_data_payload
 
@@ -196,7 +196,7 @@ class User(ObjectMixin):
             return None
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         response = response.json()
         return cls(response["data"]["id"], client, data = response["data"])
@@ -211,7 +211,7 @@ class User(ObjectMixin):
         response = requests.put(f"{self._url}/subscribers", headers = self.client.headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -225,7 +225,7 @@ class User(ObjectMixin):
         response = requests.delete(f"{self._url}/subscribers", headers = self.client.headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return True
 
@@ -256,7 +256,7 @@ class User(ObjectMixin):
             if response.json().get("error") == "already_blocked":
                 return self.fresh
 
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -277,7 +277,7 @@ class User(ObjectMixin):
             if response.json().get("error") == "not_blocked":
                 return False
 
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return True
 
@@ -310,7 +310,7 @@ class User(ObjectMixin):
         response = requests.put(f"{self._url}/abuses", headers = self.client.headers, params = params)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -324,7 +324,7 @@ class User(ObjectMixin):
         response = requests.put(f"{self.client.api}/users/{self.id}/updates_subscribers", headers = self.client.headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -338,7 +338,7 @@ class User(ObjectMixin):
         response = requests.delete(f"{self.client.api}/users/{self.id}/updates_subscribers", headers = self.client.headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -662,14 +662,12 @@ class Post(ObjectMixin):
         response = requests.post(f"{self._url}/comments", data = data, headers = self.client.headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         response = response.json()
 
         if response["data"]["id"] == "000000000000000000000000":
-            #raise FailedToComment(f"Failed to add the comment {text}")
-            print(f"Failed to add the comment {text}. Are you posting the same comment too fast?")
-            return response
+            raise FailedToComment(f"Failed to add the comment {text}. Are you posting the same comment too fast?")
 
         return Comment(response["data"]["id"], self.client, data = response["data"]["comment"])
 
@@ -683,7 +681,7 @@ class Post(ObjectMixin):
         response = requests.put(f"{self._url}/smiles", headers = self.client.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -697,7 +695,7 @@ class Post(ObjectMixin):
         response = requests.delete(f"{self._url}/smiles", headers = self.client.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -711,7 +709,7 @@ class Post(ObjectMixin):
         response = requests.put(f"{self._url}/unsmiles", headers = self.client.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -725,7 +723,7 @@ class Post(ObjectMixin):
         response = requests.delete(f"{self._url}/unsmiles", headers = self.client.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -742,7 +740,7 @@ class Post(ObjectMixin):
             return None
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return Post(response.json()["data"]["id"], self.client)
 
@@ -759,7 +757,7 @@ class Post(ObjectMixin):
             return self
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -795,7 +793,7 @@ class Post(ObjectMixin):
         response = requests.put(f"{self._url}/abuses", headers = self.client.headers, params = params)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -825,7 +823,7 @@ class Post(ObjectMixin):
         response = requests.put(f"{self._url}/tags", headers = self.client.headers, data = data)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -857,7 +855,7 @@ class Post(ObjectMixin):
         response = requests.put(f"{self._url}/pinned", headers = self.client.headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -873,7 +871,7 @@ class Post(ObjectMixin):
         response = requests.delete(f"{self._url}/pinned", headers = self.client.headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1193,14 +1191,12 @@ class Comment(CommentMixin):
         response = requests.post(f"{self._url}/{self.id}/replies", data = data, headers = self.client.headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         response = response.json()
 
         if response["data"]["id"] == "000000000000000000000000":
-            #raise FailedToComment(f"Failed to add the comment {text}")
-            print(f"Failed to add the comment {text}. Are you posting the same comment too fast?")
-            return response
+            raise FailedToComment(f"Failed to add the comment {text}. Are you posting the same comment too fast?")
 
         return Comment(response["data"]["id"], self.client, data = response["data"]["comment"])
 
@@ -1227,7 +1223,7 @@ class Comment(CommentMixin):
         response = requests.put(f"{self._absolute_url}/{self.id}/smiles", headers = self.client.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1241,7 +1237,7 @@ class Comment(CommentMixin):
         response = requests.delete(f"{self._absolute_url}/{self.id}/smiles", headers = self.client.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1255,7 +1251,7 @@ class Comment(CommentMixin):
         response = requests.put(f"{self._absolute_url}/{self.id}/unsmiles", headers = self.client.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1269,7 +1265,7 @@ class Comment(CommentMixin):
         response = requests.delete(f"{self._absolute_url}/{self.id}/unsmiles", headers = self.client.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1302,7 +1298,7 @@ class Comment(CommentMixin):
         response = requests.put(f"{self._absolute_url}/{self.id}/abuses", headers = self.client.headers, params = params)
 
         if response.status_code != 200:
-            raise BadAPIResponse(response.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 

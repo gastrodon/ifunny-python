@@ -48,8 +48,8 @@ class Handler:
 
         message = Message(data, self.client)
 
+        message.invoked = self.client.resolve_command(message)
         self.get_ev("on_message")(message)
-        self.client.resolve_command(message)
 
     def _on_connect(self, key, data):
         self.client.sendbird_session_key = data["key"]
@@ -76,7 +76,6 @@ class Handler:
 
     def _on_invite(self, update):
         invite = ChannelInvite(update, self.client)
-        print(f"hook got {invite.invitees}")
         if self.client.user in invite.invitees:
             return self.get_ev("on_invite")(invite)
 
@@ -109,7 +108,8 @@ class Event:
         self.help = self.method.__doc__
 
     def __call__(self, *data):
-        return self.method(*data)
+        self.method(*data)
+        return self
 
 """
 events allowed:

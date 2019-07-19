@@ -15,6 +15,7 @@ class Socket:
         return
 
     def on_close(self):
+        self.active = False
         if not self.threaded:
             return self.client.handler._on_disconnect()
 
