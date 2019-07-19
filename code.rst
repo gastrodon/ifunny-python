@@ -34,6 +34,20 @@ Channel
     :members:
     :undoc-members:
 
+ChannelUser
+-----------
+
+.. autoclass:: ifunny.objects.ChannelUser
+    :members:
+    :undoc-members:
+
+Message
+-------
+
+.. autoclass:: ifunny.objects.Message
+    :members:
+    :undoc-members:
+
 ChannelInvite
 ---------------
 

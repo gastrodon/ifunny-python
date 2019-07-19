@@ -13,11 +13,10 @@ def _help(message, args):
     message.send(_help)
 
 class Command:
-    def __init__(self, method, name, cog = None):
+    def __init__(self, method, name):
         self.method = method
         self.name = name
         self.help = self.method.__doc__
-        cog = cog
 
     def __call__(self, message, args):
         self.method(message, args)

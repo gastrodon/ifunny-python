@@ -38,8 +38,6 @@ class Client:
         "help" : Defaults.help
     }
 
-    cogs = {}
-
     def __init__(self, trace = False, threaded = True, prefix = {""}, paginated_size = 25):
         # command
         self.__prefix = None
