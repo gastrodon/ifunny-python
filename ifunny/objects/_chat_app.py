@@ -1,59 +1,9 @@
 import json, time, requests
-from ifunny.util.methods import determine_mime
+
+from ifunny.util.methods import determine_mime, paginated_data_sb, paginated_generator, paginated_params
 from ifunny.util.exceptions import ChatNotActive, NotOwnContent, BadAPIResponse
 
 from ifunny.objects._main_app import ObjectMixin, User
-
-class ChannelUser(User):
-    def __init__(self, id, client, channel, *args, sb_data = None, **kwargs):
-        super().__init__(id, client, *args, **kwargs)
-        self.channel = channel
-        self._sb_url = channel._url
-        self._sb_data_payload = sb_data
-
-    def _sb_prop(self, key, default = None, force = False):
-        if not self._sb_data.get(key, None) or force:
-            self._update = True
-
-        return self._sb_data.get(key, default)
-
-    @property
-    def _sb_data(self):
-        if self._update or self._sb_data_payload is None:
-            self._update = False
-
-            members = [member for member in self.channel._account_data.get("members") if member["user_id"] == self.id]
-
-            if not len(members):
-                members = [{}]
-
-            self._sb_data_payload = members[0]
-
-        return self._sb_data_payload
-
-    @property
-    def state(self):
-        """
-        :returns: Is this member invited (pending join), or joined?
-        :rtype: str
-        """
-        return self._sb_prop("state")
-
-    @property
-    def last_online(self):
-        """
-        :returns: timestamp of whne this user was last online
-        :rtype: int
-        """
-        return self._sb_prop("last_seen_at")
-
-    @property
-    def online(self):
-        """
-        :returns: is this user online?
-        :rtype: bool
-        """
-        return self._sb_prop("online")
 
 class SendbirdMixin(ObjectMixin):
     """
@@ -107,7 +57,49 @@ class Channel(SendbirdMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.channel_url = self.id
-        self._url = f"{self.client.sendbird_api}/group_channels/{self.id}/"
+        self._url = f"{self.client.sendbird_api}/group_channels/{self.id}"
+
+    def _members_paginated(self, limit = None, next = None):
+        limit = limit if limit else self.client.paginated_size
+
+        data = paginated_data_sb(
+            f"{self._url}/members", "members", self.client.sendbird_headers,
+            limit = limit, next = next
+        )
+
+        data["items"] = [ChannelUser(member["user_id"], self.client, self, sb_data = member) for member in data["items"]]
+
+        return data
+
+    def _messages_paginated(self, limit = None, next = None):
+        limit = limit if limit else self.client.paginated_size
+        print(limit)
+        next = next if next else int(time.time() * 1000)
+
+        params = {
+            "prev_limit": limit,
+            "message_ts": next,
+            "include"   : False,
+            "is_sdk"    : True,
+            "reverse"   : True
+        }
+
+        response = requests.get(f"{self._url}/messages", params = params, headers = self.client.sendbird_headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"requesting {response.url} failed\n{response.text}")
+
+        data = response.json()["messages"]
+        next_ts = data[::-1][0]["created_at"]
+        items = [Message(message["message_id"], message["channel_url"], self.client) for message in data]
+
+        return {
+            "items": items,
+            "paging": {
+                "prev": None,
+                "next": next_ts
+            }
+        }
 
     def join(self):
         """
@@ -120,15 +112,32 @@ class Channel(SendbirdMixin):
 
         return True if response.status_code == 200 else False
 
+    def read(self):
+        """
+        Mark messages in a channel as read.
+
+        :retunrs: self
+        :rtype: Channel
+        """
+        if not self.client.socket.active:
+            raise ChatNotActive("The chat socket has not been started")
+
+        message_data = {
+            "channel_url": self.channel
+        }
+
     def send_message(self, message):
         """
-        Send a text message to a channel
+        Send a text message to a channel.
 
         :param message: text that you will send
 
         :type message: str
 
         :raises: ChatNotActive if the attached client has not started the chat socket
+
+        :retunrs: self
+        :rtype: Channel
         """
         if not self.client.socket.active:
             raise ChatNotActive("The chat socket has not been started")
@@ -139,6 +148,7 @@ class Channel(SendbirdMixin):
         }
 
         self.client.socket.send(f"MESG{json.dumps(message_data, separators = (',', ':'))}\n")
+        return self
 
     def send_image_url(self, image_url, width = 780, height = 780):
         """
@@ -153,6 +163,9 @@ class Channel(SendbirdMixin):
         :type height: int
 
         :raises: ChatNotActive if the attached client has not started the chat socket
+
+        :retunrs: self
+        :rtype: Channel
         """
         if not self.client.socket.active:
             raise ChatNotActive("The chat socket has not been started")
@@ -179,6 +192,27 @@ class Channel(SendbirdMixin):
         }
 
         self.client.socket.send(f"FILE{json.dumps(response_data, separators = (',', ':'))}\n")
+        return self
+
+    # public generators
+
+    @property
+    def members(self):
+        """
+        :retunrs: generator to iterate through channel members
+        :rtype: Generator<ChannelUser>
+        """
+        return paginated_generator(self._members_paginated)
+
+    @property
+    def messages(self):
+        """
+        :retunrs: generator to iterate through channel messages
+        :rtype: Generator<Message>
+        """
+        return paginated_generator(self._messages_paginated)
+
+    # public properties
 
     @property
     def _data(self):
@@ -196,19 +230,6 @@ class Channel(SendbirdMixin):
         :rtype: function
         """
         return self.send_message
-
-    @property
-    def members(self):
-        """
-        :retunrs: list of channel members, if group
-        :rtype: List<ChannelUser>, or None
-        """
-        data = self._get_prop("members")
-
-        if not data:
-            return None
-
-        return [ChannelUser(member["user_id"], self.client, self, sb_data = member) for member in data]
 
     @property
     def admins(self):
@@ -292,7 +313,68 @@ class Channel(SendbirdMixin):
         """
         return self._get_prop("is_muted")
 
-class Message:
+class ChannelUser(User):
+    """
+    A User attatched to a channel.
+    takes the same params as a User, with an extra set
+
+    :param channel: Channel that this user is in
+    :param sb_data: A sendbird data payload for the user to pull from before requests
+
+    :type channel: Channel
+    :type sb_data: dict
+    """
+    def __init__(self, id, client, channel, *args, sb_data = None, **kwargs):
+        super().__init__(id, client, *args, **kwargs)
+        self.channel = channel
+        self._sb_url = channel._url
+        self._sb_data_payload = sb_data
+
+    def _sb_prop(self, key, default = None, force = False):
+        if not self._sb_data.get(key, None) or force:
+            self._update = True
+
+        return self._sb_data.get(key, default)
+
+    @property
+    def _sb_data(self):
+        if self._update or self._sb_data_payload is None:
+            self._update = False
+
+            members = [member for member in self.channel._account_data.get("members") if member["user_id"] == self.id]
+
+            if not len(members):
+                members = [{}]
+
+            self._sb_data_payload = members[0]
+
+        return self._sb_data_payload
+
+    @property
+    def state(self):
+        """
+        :returns: Is this member invited (pending join), or joined?
+        :rtype: str
+        """
+        return self._sb_prop("state")
+
+    @property
+    def last_online(self):
+        """
+        :returns: timestamp of whne this user was last online
+        :rtype: int
+        """
+        return self._sb_prop("last_seen_at")
+
+    @property
+    def online(self):
+        """
+        :returns: is this user online?
+        :rtype: bool
+        """
+        return self._sb_prop("online")
+
+class Message(SendbirdMixin):
     """
     Sendbird message object.
     Created when a message is recieved.
@@ -303,19 +385,19 @@ class Message:
     :type data: dict
     :type client: Client
     """
-    def __init__(self, data, client):
-        self.client = client
+    def __init__(self, id, channel_url, client, data = None):
+        super().__init__(id, client, data = data)
         self.invoked = None
-        self.__data = data
 
         self.__channel_url = None
         self.__channel = None
         self.__author = None
+        self._url = f"{self.client.sendbird_api}/group_channels/{channel_url}/messages/{self.id}"
 
     def __repr__(self):
-        return self.content
+        return self.content if self.content else self.file_type
 
-    def delete():
+    def delete(self):
         """
         Delete a message sent by the client. This is exparamental, and may not work
 
@@ -330,17 +412,13 @@ class Message:
         return self
 
     @property
-    def _url(self):
-        return f"{self.client.sendbird_api}/v3/group_channels/{self.channel_url}/messages/{self.id}"
-
-    @property
     def author(self):
+        """
+        :returns: the author of this message
+        :rtype: ChannelUser
+        """
         if not self.__author:
-            if not self.__data.get("user"):
-                self.__author = None
-                return self.__author
-
-            self.__author = User(self.__data["user"]["guest_id"], self.client)
+            self.__author = ChannelUser(self._get_prop("user")["user_id"], self.client, self.channel)
 
         return self.__author
 
@@ -361,7 +439,7 @@ class Message:
         :returns: String content of the message
         :rtype: str
         """
-        return self.__data["message"]
+        return self._get_prop("message")
 
     @property
     def channel_url(self):
@@ -369,7 +447,10 @@ class Message:
         :returns: channel url for this messages channel
         :rtype: str
         """
-        return self.__data["channel_url"]
+        if not self.__channel_url:
+            self.__channel_url = self._get_prop("channel_url")
+
+        return self.__channel_url
 
     @property
     def send(self):
@@ -388,25 +469,61 @@ class Message:
         return self.channel.send_image_url
 
     @property
-    def id(self):
-        """
-        :returns: channel id
-        :rtype: str
-        """
-        return self.__data["msg_id"]
-
-    @property
     def type(self):
         """
         :returns: type of channel (though it appears the only possible value is ``group``)
         :rtype: str
         """
-        return self.__data["channel_type"]
+        return self._get_prop("type")
+
+    @property
+    def file_url(self):
+        """
+        :returns: message file url, if any
+        :rtype: str, or None
+        """
+        if self.type != "FILE":
+            return None
+
+        return self._get_prop("file").get("url")
+
+    @property
+    def file_data(self):
+        """
+        :returns: file binary data, if any
+        :rtype: str, or None
+        """
+        if self.type != "FILE":
+            return None
+
+        return requests.get(self.file_url, headers = self.client.sendbird_headers).content
+
+    @property
+    def file_type(self):
+        """
+        :returns: file type, if the message is a file
+        :rtype: str, or None
+        """
+        if self.type != "FILE":
+            return None
+
+        return self._get_prop("file").get("type")
+
+    @property
+    def file_name(self):
+        """
+        :returns: file name, if the message is a file
+        :rtype: str, or None
+        """
+        if self.type != "FILE":
+            return None
+
+        return self._get_prop("file").get("name")
 
 class ChannelInvite:
     """
     Channel update class.
-    Created when an Channel update is recieved from the chat websocket.
+    Created when an invite is recieved from the chat websocket.
 
     :param data: channel json, data after prefix in a sendbird websocket response
     :param client: client that the object belongs to
@@ -519,7 +636,7 @@ class ChannelInvite:
                 self.__inviter = None
                 return self.__inviter
 
-            self.__inviter = User(inviter["user_id"], self.client)
+            self.__inviter = ChannelUser(inviter["user_id"],self.client, self.channel, )
 
         return self.__inviter
 
@@ -531,7 +648,7 @@ class ChannelInvite:
         """
         if not self.__invitees:
             invitees = self.__data["data"]["invitees"]
-            self.__invitees = [User(user["user_id"], self.client) for user in invitees]
+            self.__invitees = [ChannelUser(user["user_id"], self.client, self.channel) for user in invitees]
 
         return self.__invitees
 

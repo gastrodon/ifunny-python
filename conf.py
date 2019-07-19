@@ -21,7 +21,7 @@ copyright = '2019, Zero'
 author = 'Zero'
 
 # The full version, including alpha/beta/rc tags
-release = '0.4'
+release = '0.5'
 
 
 # -- General configuration ---------------------------------------------------

@@ -46,7 +46,7 @@ class Handler:
         if data["user"]["name"] == self.client.nick:
             return
 
-        message = Message(data, self.client)
+        message = Message(data["msg_id"], data["channel_url"], self.client, data = data)
 
         message.invoked = self.client.resolve_command(message)
         self.get_ev("on_message")(message)
