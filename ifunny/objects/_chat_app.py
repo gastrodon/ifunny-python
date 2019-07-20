@@ -232,7 +232,7 @@ class Channel(SendbirdMixin):
 
         return self.fresh
 
-    def send_message(self, message, read = True):
+    def send_message(self, message, read = False):
         """
         Send a text message to a channel.
 
@@ -263,7 +263,7 @@ class Channel(SendbirdMixin):
 
         return self
 
-    def send_image_url(self, image_url, width = 780, height = 780, read = True):
+    def send_image_url(self, image_url, width = 780, height = 780, read = False):
         """
         Send an image to a channel from a url source.
 
