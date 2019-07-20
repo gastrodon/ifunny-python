@@ -2,6 +2,7 @@
 
 #### 0.5.2
 - Fix bug getting `User.chat_channel`
+- Fix bug in `Message.author`
 
 #### 0.5.1
 - started keeping track of new features

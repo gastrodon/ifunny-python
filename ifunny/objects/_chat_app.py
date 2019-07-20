@@ -588,7 +588,7 @@ class Message(SendbirdMixin):
         :rtype: ChannelUser
         """
         if not self.__author:
-            self.__author = ChannelUser(self._get_prop("user")["user_id"], self.client, self.channel)
+            self.__author = ChannelUser(self._get_prop("user").get("guest_id"), self.client, self.channel)
 
         return self.__author
 
