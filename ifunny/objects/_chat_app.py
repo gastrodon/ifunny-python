@@ -253,7 +253,7 @@ class Channel(SendbirdMixin):
         message_data = {
             "channel_url"   : self.channel_url,
             "message"       : message,
-            "req_id"        : self.client.next_req_id
+            #"req_id"        : self.client.next_req_id
         }
 
         self.client.socket.send(f"MESG{json.dumps(message_data, separators = (',', ':'))}\n")
@@ -302,8 +302,8 @@ class Channel(SendbirdMixin):
                     "height"        : width,
                     "width"         : height,
                 }
-            ],
-            "req_id": self.client.next_req_id
+            ]
+            #"req_id": self.client.next_req_id
         }
 
         self.client.socket.send(f"FILE{json.dumps(response_data, separators = (',', ':'))}\n")

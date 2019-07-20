@@ -4,6 +4,7 @@
 - Fix bug getting `User.chat_channel`
 - Fix bug in `Message.author`
 - Don't read messages by default when sending
+- Disable req_id. It is bugged
 
 #### 0.5.1
 - started keeping track of new features
