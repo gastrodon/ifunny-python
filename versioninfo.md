@@ -1,5 +1,8 @@
 ### What's new
 
+#### 0.5.2
+- Fix bug getting `User.chat_channel`
+
 #### 0.5.1
 - started keeping track of new features
 - use of `client.next_req_id` for messages (still won't work for pics), which had been implemented much earlier

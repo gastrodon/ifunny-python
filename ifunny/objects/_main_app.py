@@ -2,6 +2,8 @@ import requests, json
 
 from urllib.parse import quote_plus as urlencode
 
+from ifunny import objects
+
 from ifunny.util.methods import invalid_type, paginated_format, paginated_data, paginated_generator, get_slice
 from ifunny.util.exceptions import NoContent, TooManyMentions, BadAPIResponse, FailedToComment, NotOwnContent, OwnContent
 
@@ -515,7 +517,7 @@ class User(ObjectMixin):
         :rtype: Channel
         """
         if self.chat_url:
-            return Channel(self.chat_url, self.client)
+            return objects.Channel(self.chat_url, self.client)
 
         return None
 
