@@ -1,7 +1,7 @@
-import json, time, requests
+import json, time, requests, threading
 
 from ifunny.util.methods import determine_mime, paginated_data_sb, paginated_generator, paginated_params
-from ifunny.util.exceptions import ChatNotActive, NotOwnContent, BadAPIResponse
+from ifunny.util.exceptions import ChatNotActive, NotOwnContent, BadAPIResponse, Forbidden
 
 from ifunny.objects._main_app import ObjectMixin, User
 
@@ -73,7 +73,6 @@ class Channel(SendbirdMixin):
 
     def _messages_paginated(self, limit = None, next = None):
         limit = limit if limit else self.client.paginated_size
-        print(limit)
         next = next if next else int(time.time() * 1000)
 
         params = {
@@ -101,6 +100,17 @@ class Channel(SendbirdMixin):
             }
         }
 
+    def _wait_to_set_frozen(self, wait, state, callback = None):
+        time.sleep(wait)
+
+        if self.fresh.frozen:
+            self.frozen = state
+
+        if callback:
+            callback(self)
+
+    # public methods
+
     def join(self):
         """
         Join this channel
@@ -123,16 +133,114 @@ class Channel(SendbirdMixin):
             raise ChatNotActive("The chat socket has not been started")
 
         message_data = {
-            "channel_url": self.channel
+            "channel_url"   : self.channel_url,
+            "req_id"        : self.client.next_req_id
         }
 
-    def send_message(self, message):
+        self.client.socket.send(f"READ{json.dumps(message_data, separators = (',', ':'))}\n")
+        return self
+
+    def invite(self, user):
+        """
+        Invite a user or users to a channel.
+
+        :param user: User or list<User> of invitees
+
+        :type user: User, or list<User>
+
+        :returs: self
+        :rtype: Channel
+        """
+
+        data = json.dumps({
+            "user_ids"  : [user.id] if isinstance(user, User) else [u.id for u in users]
+        })
+
+        response = requests.post(f"{self._url}/invite", data = data, headers = self.client.sendbird_headers)
+
+        if response.status_code == 403:
+            raise Forbidden("You cannot invite users to this channel")
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self
+
+    def kick(self, user):
+        """
+        Kick a member from a group
+
+        :param user: User to kick
+        :type user: User
+
+        :return: self
+        :rtype: Channel
+        """
+        data = {
+            "members": user.id
+        }
+
+        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}/kicked_members", data = data, headers = self.client.headers)
+
+        if response.status_code == 403:
+            raise Forbidden("You must be an operator or admin to kick members")
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self
+
+    def freeze(self, until = 0, callback = None):
+        """
+        Freeze a Channel, and set the update flag.
+
+        :param until: time in seconds to wait to unfreeze. If 0, there will be no unfreezing
+        :param callback: method to call when unfrozen, must accept single argument for Channel
+
+        :type until: int
+        :type callback: callable, or None
+
+        :returs: self
+        :rtype: Channel
+        """
+
+        self.frozen = True
+
+        if until and isinstance(until, int):
+            threading.Thread(target = self._wait_to_set_frozen, args = [until, False], kwargs = {"callback": callback}).start()
+
+        return self.fresh
+
+    def unfreeze(self, until = 0, callback = None):
+        """
+        Freeze a Channel, and set the update flag.
+
+        :param until: time in seconds to wait to unfreeze. If 0, there will be no unfreezing
+        :param callback: method to call when unfrozen, must accept single argument for Channel
+
+        :type until: int
+        :type callback: callable, or None
+
+        :returs: self
+        :rtype: Channel
+        """
+
+        self.frozen = False
+
+        if until and isinstance(until, int):
+            threading.Thread(target = self._wait_to_set_frozen, args = [until, True], kwargs = {"callback": callback}).start()
+
+        return self.fresh
+
+    def send_message(self, message, read = True):
         """
         Send a text message to a channel.
 
         :param message: text that you will send
+        :param read: do we mark the chat as read?
 
         :type message: str
+        :type read: bool
 
         :raises: ChatNotActive if the attached client has not started the chat socket
 
@@ -144,23 +252,30 @@ class Channel(SendbirdMixin):
 
         message_data = {
             "channel_url"   : self.channel_url,
-            "message"       : message
+            "message"       : message,
+            "req_id"        : self.client.next_req_id
         }
 
         self.client.socket.send(f"MESG{json.dumps(message_data, separators = (',', ':'))}\n")
+
+        if read:
+            self.read()
+
         return self
 
-    def send_image_url(self, image_url, width = 780, height = 780):
+    def send_image_url(self, image_url, width = 780, height = 780, read = True):
         """
         Send an image to a channel from a url source.
 
         :param image_url: url where the image is located. This should point to the image itself, not a webpage with an image
         :param width: width of the image in pixels
         :param height: heigh of the image in pixels
+        :param read: do we mark the chat as read?
 
         :type image_url: str
         :type width: int
         :type height: int
+        :type read: bool
 
         :raises: ChatNotActive if the attached client has not started the chat socket
 
@@ -176,10 +291,9 @@ class Channel(SendbirdMixin):
 
         response_data = {
             "channel_url"   : self.channel_url,
-            "name"          : f"botimage",
-            "req_id"        : str(int(round(time.time() * 1000))),
-            "type"          : mime,
             "url"           : image_url,
+            "name"          : f"botimage",
+            "type"          : mime,
             "thumbnails"    : [
                 {
                     "url"           : image_url,
@@ -188,10 +302,15 @@ class Channel(SendbirdMixin):
                     "height"        : width,
                     "width"         : height,
                 }
-            ]
+            ],
+            "req_id": self.client.next_req_id
         }
 
         self.client.socket.send(f"FILE{json.dumps(response_data, separators = (',', ':'))}\n")
+
+        if read:
+            self.read()
+
         return self
 
     # public generators
@@ -287,12 +406,24 @@ class Channel(SendbirdMixin):
         :retunrs: is this channel frozen? Assumes False if attribute cannot be queried
         :rtype: bool
         """
-        return self._get_prop("freeze", default = False)
+        return self._data.get("chatInfo", {}).get("frozen")
+
+    @frozen.setter
+    def frozen(self, val):
+        """
+        Freeze or unfreeze a Channel
+        """
+        if not isinstance(val, bool):
+            raise TypeError("Value should be bool")
+
+        data = f"is_frozen={str(val).lower()}"
+
+        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}", headers = self.client.headers, data = data)
 
     @property
     def type(self):
         """
-        :returns: the type of this group. Can be ``opengroup``, ``chat``
+        :returns: the type of this group. Can be ``group``, ``opengroup``, ``chat``
         :rtype: str
         """
         return self._get_prop("custom_type")
@@ -300,10 +431,26 @@ class Channel(SendbirdMixin):
     @property
     def direct(self):
         """
-        :retunrs: is this group a private message channel?
+        :retunrs: is this channel a private message channel?
         :rtype: bool
         """
         return self.type == "chat"
+
+    @property
+    def private(self):
+        """
+        :retunrs: is this channel a private group?
+        :rtype: bool
+        """
+        return self.type == "group"
+
+    @property
+    def public(self):
+        """
+        :retunrs: is this channel a public group?
+        :rtype: bool
+        """
+        return self.type == "opengroup"
 
     @property
     def muted(self):
@@ -335,6 +482,29 @@ class ChannelUser(User):
             self._update = True
 
         return self._sb_data.get(key, default)
+
+    # public methods
+
+    def kick(self):
+        """
+        Kick a member from a group
+
+        :return: self
+        :rtype: ChannelUser
+        """
+        data = {
+            "members": self.id
+        }
+
+        response = requests.put(f"{self.client.api}/chats/channels/{self.channel.channel_url}/kicked_members", data = data, headers = self.client.headers)
+
+        if response.status_code == 403:
+            raise Forbidden("You must be an operator or admin to kick members")
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self
 
     @property
     def _sb_data(self):
@@ -557,16 +727,14 @@ class ChannelInvite:
         :returns: Channel that was joined, or None
         :rtype: Channel, or None
         """
-        if not self.inviter or self.client not in self.invitees:
+        if not self.inviter or self.client.user not in self.invitees:
             return None
-
-        headers = self.client.sendbird_headers
 
         data = json.dumps({
             "user_id": self.client.id
         })
 
-        response = requests.put(f"{self.url}/accept", headers = headers, data = data)
+        response = requests.put(f"{self.url}/accept", headers = self.client.sendbird_headers, data = data)
 
         if response.status_code != 200:
             raise BadAPIResponse(f"{response.url}, {response.text}")
@@ -579,16 +747,14 @@ class ChannelInvite:
         Decline an incoming invitation, if it is from a user.
         If it is not, the method will do nothing and return None.
         """
-        if not self.inviter or self.client not in self.invitees:
+        if not self.inviter or self.client.user not in self.invitees:
             return None
-
-        headers = self.client.sendbird_headers
 
         data = json.dumps({
             "user_id": self.client.id
         })
 
-        response = requests.put(f"{self.url}/decline", headers = headers, data = data)
+        response = requests.put(f"{self.url}/decline", headers = self.client.sendbird_headers, data = data)
 
     @property
     def url(self):

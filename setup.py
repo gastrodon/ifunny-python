@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = "ifunny",
-    version = "0.5.0",
+    version = "0.5.1",
     description = "iFunny interface in python",
     url = "https://github.com/basswaver/iFunny",
     download_url = "https://github.com/basswaver/iFunny/tarball/master",

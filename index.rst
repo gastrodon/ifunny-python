@@ -1,8 +1,3 @@
-.. iFunny documentation master file, created by
-   sphinx-quickstart on Fri Jul  5 22:17:01 2019.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 iFunny python interface
 =======================
 
@@ -10,7 +5,7 @@ iFunny python interface
 Requirements:
     - requests
     - websocket-client
-    - Python 2.7+
+    - Python 3.7+
 
 This is a python library aiming to interface with python. To learn more about the project, and to view it's code, check it out on `github <https://github.com/basswaver/ifunny>`_.
 

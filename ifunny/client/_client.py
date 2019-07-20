@@ -369,7 +369,7 @@ class Client:
         data = {
             "thumbnail1"    : "780, 780",
             "thumbnail2"    : "320,320",
-            "channel_url"   : channel.url
+            "channel_url"   : channel.channel_url
         }
 
         response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.sendbird_headers, files = files, data = data)
@@ -523,7 +523,7 @@ class Client:
         :rtype: str
         """
         self.__sendbird_lock.acquire()
-        self.__sendbird__req_id += 1
+        self.__sendbird_req_id += 1
         self.__sendbird_lock.release()
         return self.__sendbird_req_id
 
