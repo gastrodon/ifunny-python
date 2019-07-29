@@ -1,5 +1,14 @@
 ### What's new
 
+#### 0.6.0
+- `client.trending_channels` property, for trending channels in explore
+- generators for `client.home`, `client.featured`, `client.collective` feeds
+- `client.reads` generator for viewed posts
+- user `pic_url` property
+- channel `name` property
+- channel `add_operator` and `remove_operator` methods
+- channel `leave` method, so you can escape
+
 #### 0.5.2
 - Fix bug getting `User.chat_channel`
 - Fix bug in `Message.author`

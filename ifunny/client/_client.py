@@ -10,7 +10,7 @@ from pathlib import Path
 from ifunny.client._handler import Handler, Event
 from ifunny.ext.commands import Command, Defaults
 from ifunny.client._sendbird import Socket
-from ifunny.objects import User, Channel, Notification
+from ifunny.objects import User, Channel, Notification, Post
 from ifunny.util.methods import paginated_format, paginated_data, paginated_generator
 from ifunny.util.exceptions import ChatAlreadyActive, BadAPIResponse, ChatNotActive
 
@@ -106,7 +106,7 @@ class Client:
 
         return self.__account_data.get(key, None)
 
-    def _notifications_paginated(self, limit: int = 30, prev: str = None, next: str = None):
+    def _notifications_paginated(self, limit = 30, prev = None, next = None):
         data = paginated_data(
             f"{self.api}/news/my", "news", self.headers,
             limit = limit, prev = prev, next = next
@@ -149,6 +149,46 @@ class Client:
             "paging":   paging,
             "items": [Channel(data["channel_url"], self, data = data) for data in response["channels"]]
         }
+
+    def _reads_paginaged(self, limit = 30, next = None, prev = None):
+        data = paginated_data(
+            f"{self.api}/feeds/reads", "content", self.headers,
+            limit = limit, prev = prev, next = prev
+        )
+
+        items = [Post(item["id"], self, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
+
+    def _collective_paginated(self, limit = 30, next = None, prev = None):
+        data = paginated_data(
+            f"{self.api}/feeds/collective", "content", self.headers,
+            limit = limit, prev = prev, next = prev, post = True
+        )
+
+        items = [Post(item["id"], self, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
+
+    def _featured_paginated(self, limit = 30, next = None, prev = None):
+        data = paginated_data(
+            f"{self.api}/feeds/featured", "content", self.headers,
+            limit = limit, prev = prev, next = prev
+        )
+
+        items = [Post(item["id"], self, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
+
+    def _home_paginated(self, limit = 30, next = None, prev = None):
+        data = paginated_data(
+            f"{self.api}/timelines/home", "content", self.headers,
+            limit = limit, prev = prev, next = prev
+        )
+
+        items = [Post(item["id"], self, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
 
     # private properties
 
@@ -321,6 +361,15 @@ class Client:
             if first.startswith(prefix):
                 return self.commands.get(first[len(prefix):], Defaults.default)(message, args)
 
+    def mark_features_read(self):
+        """
+        Mark all features as read (or viewed).
+        """
+        response = requests.put(f"{self.api}/reads/all")
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
     # sendbird methods
 
     def start_chat(self):
@@ -437,7 +486,7 @@ class Client:
         :rtype: dict
         """
         _headers = {
-            "User-Agent": self.__user_agent
+            "User-Agent"    : self.__user_agent,
         }
 
         if self.__token:
@@ -584,6 +633,12 @@ class Client:
         self._update = True
         return self
 
+    @property
+    def trending_channels(self):
+        response = requests.get(f"{self.api}/chats/channels/trending", headers = self.headers)
+        
+        return [Channel(data["channel_url"], self, data = data) for data in response.json()["data"]["channels"]]
+
     # public generators
 
     @property
@@ -596,6 +651,58 @@ class Client:
         :rtype: Generator<Notification>
         """
         return paginated_generator(self._notifications_paginated)
+
+    @property
+    def reads(self):
+        """
+        Generator for a client's reads.
+        Each iteration will return the next viewed post, in decending order of date accessed
+
+        :returns: generator iterating through read posts
+        :rtype: Generator<Post>
+        """
+        return paginated_generator(self._reads_paginaged)
+
+    @property
+    def viewed(self):
+        """
+        Alias to Client.reads because ifunny's in-api name is dumb.
+        You don't read a picture or video
+        """
+        return self.reads
+
+    @property
+    def home(self):
+        """
+        Generator for a client's subscriptions feed (home feed).
+        Each iteration will return the next home post, in decending order of date posted
+
+        :returns: generator iterating the home feed
+        :rtype: Generator<Post>
+        """
+        return paginated_generator(self._home_paginated)
+
+    @property
+    def collective(self):
+        """
+        Generator for the collective feed.
+        Each iteration will return the next collective post, in decending order of date posted
+
+        :returns: generator iterating the collective feed
+        :rtype: Generator<Post>
+        """
+        return paginated_generator(self._collective_paginated)
+
+    @property
+    def featured(self):
+        """
+        Generator for the featured feed.
+        Each iteration will return the next featured post, in decending order of date posted
+
+        :returns: generator iterating the featured feed
+        :rtype: Generator<Post>
+        """
+        return paginated_generator(self._featured_paginated)
 
     @property
     def channels(self):

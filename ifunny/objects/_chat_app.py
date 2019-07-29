@@ -111,6 +111,56 @@ class Channel(SendbirdMixin):
 
     # public methods
 
+    def add_operator(self, user):
+        """
+        Add an operator toi a Channel
+
+        :params user: operator to add
+
+        :type user: User or ChannelUser
+
+        :returns: fresh list of this channel's operators
+        :rtype: List<ChannelUser>
+        """
+        data = {
+            "operators" : user.id
+        }
+
+        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}/operators", data = data, headers = self.client.headers)
+
+        if response.status_code == 403:
+            raise Forbidden("You cannot modify the operators of this channel")
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self.fresh.operators
+
+    def remove_operator(self, user):
+        """
+        Remove an operator from a Channel
+
+        :params user: operator to remove
+
+        :type user: User or ChannelUser
+
+        :returns: fresh list of this channel's operators
+        :rtype: List<ChannelUser>
+        """
+        data = {
+            "operators" : user.id
+        }
+
+        response = requests.delete(f"{self.client.api}/chats/channels/{self.channel_url}/operators", data = data, headers = self.client.headers)
+
+        if response.status_code == 403:
+            raise Forbidden("You cannot modify the operators of this channel")
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self.fresh.operators
+
     def join(self):
         """
         Join this channel
@@ -119,6 +169,17 @@ class Channel(SendbirdMixin):
         :rtype: bool
         """
         response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}/members", headers = self.client.headers)
+
+        return True if response.status_code == 200 else False
+
+    def leave(self):
+        """
+        Leave this channel
+
+        :returns: did this client leave successfuly?
+        :rtype: bool
+        """
+        response = requests.delete(f"{self.client.api}/chats/channels/{self.channel_url}/members", headers = self.client.headers)
 
         return True if response.status_code == 200 else False
 
@@ -384,6 +445,23 @@ class Channel(SendbirdMixin):
         """
         return self._get_prop("name")
 
+    @name.setter
+    def name(self, value):
+        data = {
+            "title": str(value),
+            "description": self.description
+        }
+
+        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}", data = data, headers = self.client.headers)
+        self._update = True
+
+    @property
+    def title(self):
+        """
+        Alias for Channel.name
+        """
+        return self.name
+
     @property
     def created(self):
         """
@@ -399,6 +477,16 @@ class Channel(SendbirdMixin):
         :rtype: str, or None
         """
         return self._data.get("chatInfo", {}).get("description")
+
+    @description.setter
+    def description(self, value):
+        data = {
+            "title": self.name,
+            "description": str(value)
+        }
+
+        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}", data = data, headers = self.client.headers)
+        self._update = True
 
     @property
     def frozen(self):
@@ -451,6 +539,16 @@ class Channel(SendbirdMixin):
         :rtype: bool
         """
         return self.type == "opengroup"
+
+    @property
+    def member_count(self):
+        """
+        :returs: number of members in this chat
+        :rtype: int
+        """
+        return self._get_prop("member_count")
+
+    # Authentication dependant properties
 
     @property
     def muted(self):

@@ -521,6 +521,15 @@ class User(ObjectMixin):
 
         return None
 
+    @property
+    def pic_url(self):
+        """
+        :retunrs: url to this accounts profile image, if any
+        :rtype: str, or None
+        """
+        _data = self._get_prop("photo")
+        return _data.get("url") if _data else None
+
     # authentication dependant attributes
 
     @property

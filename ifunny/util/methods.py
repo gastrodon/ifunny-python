@@ -1,5 +1,7 @@
 import requests
 
+from ifunny.util.exceptions import BadAPIResponse
+
 mime_types = {
     "png"   : "image/png",
     "jpg"   : "image/jpeg",
@@ -43,10 +45,13 @@ def paginated_params(limit, prev, next):
 
     return params
 
-def paginated_data(source_url, data_key, headers, limit = 25, prev = None, next = None):
+def paginated_data(source_url, data_key, headers, limit = 25, prev = None, next = None, post = False):
     params = paginated_params(limit, prev, next)
 
-    response = requests.get(source_url, headers = headers, params = params)
+    if post:
+        response = requests.post(source_url, headers = headers, data = params)
+    else:
+        response = requests.get(source_url, headers = headers, params = params)
 
     if response.status_code != 200:
         raise BadAPIResponse(f"requesting {response.url} failed\n{response.text}")
