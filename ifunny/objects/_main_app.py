@@ -67,6 +67,9 @@ class ObjectMixin:
         self._update = True
         return self
 
+    def __eq__(self, other):
+        return self.id == other
+
 class CommentMixin(ObjectMixin):
     """
     Mixin class for iFunny comments objects.
@@ -133,9 +136,6 @@ class User(ObjectMixin):
 
     def __repr__(self):
         return self.nick
-
-    def __eq__(self, other):
-        return self.id == other
 
     # paginated data
 
@@ -511,13 +511,13 @@ class User(ObjectMixin):
         return self._chat_url
 
     @property
-    def chat_channel(self):
+    def chat(self):
         """
-        :retunrs: this users chat channel, if ``user.can_chat``
-        :rtype: Channel
+        :retunrs: this users chat chat, if ``user.can_chat``
+        :rtype: Chat
         """
         if self.chat_url:
-            return objects.Channel(self.chat_url, self.client)
+            return objects.Chat(self.chat_url, self.client)
 
         return None
 
@@ -597,9 +597,6 @@ class Post(ObjectMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._url = f"{self.client.api}/content/{self.id}"
-
-    def __eq__(self, other):
-        return self.id == other
 
     # paginated data
 
@@ -906,6 +903,12 @@ class Post(ObjectMixin):
         """
         return paginated_generator(self._comments_paginated)
 
+    # private properties
+
+    @property
+    def _meta(self):
+        return self._get_prop(self.type, {})
+
     # public properties
 
     # authentication independant attributes
@@ -1087,6 +1090,14 @@ class Post(ObjectMixin):
         """
         return requests.get(self.content_url).content
 
+    @property
+    def caption(self):
+        """
+        :returns: caption text for ``caption`` type posts
+        :rtype: str, or None
+        """
+        return self._meta.get("caption_text")
+
     # authentication dependant attributes
 
     @property
@@ -1140,9 +1151,6 @@ class Comment(CommentMixin):
 
     def __repr__(self):
         return self.content
-
-    def __eq__(self, other):
-        return self.id == other
 
     def _replies_paginated(self, limit = None, prev = None, next = None):
         limit = limit if limit else self.paginated_size
@@ -1322,7 +1330,8 @@ class Comment(CommentMixin):
 
         :rtype: Generator<Comment>
         """
-        return paginated_generator(self._replies_paginated)
+        if not self.depth:
+            return paginated_generator(self._replies_paginated)
 
     # public properties
 
@@ -1582,3 +1591,200 @@ class Notification:
         :rtype: int, or None
         """
         return self.__data.get("smiles")
+
+class Channel:
+    def __init__(self, id, client, data = {}):
+        """
+        Object for ifunny explore channels.
+
+        :param id: id of the feed
+        :param client: Client that is requesting the feed
+
+        :type id: str
+        :type client: Client
+        """
+        self.client = client
+        self.id = id
+        self._feed_url = f"{self.client.api}/channels/{self.id}/items"
+        self.__data = {}
+
+    def _get_prop(self, key, default = None):
+        return self.__data.get(key, default)
+
+    def _feed_paginated(self, limit = 30, next = None, prev = None):
+        data = paginated_data(
+            self._feed_url, "content", self.client.headers,
+            limit = limit, prev = prev, next = prev
+        )
+
+        items = [Post(item["id"], self.client, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
+
+    def __eq__(self, other):
+        return self.id == other
+
+    @property
+    def feed(self):
+        """
+        Generator for a channels feed.
+        Each iteration will return the next channel post, in decending order of date posted
+
+        :returns: generator iterating the channel feed
+        :rtype: Generator<Post>
+        """
+        return paginated_generator(self._feed_paginated)
+
+class Digest(ObjectMixin):
+    """
+    iFunny digest object.
+    represnets digests featured in explore, containing comments and posts
+
+    :param id: id of the digest
+    :param client: Client that the digest belongs to
+    :param data: A data payload for the digest to pull from before requests
+    :param paginated_size: number of items to get for each paginated request. If above the call type's maximum, that will be used instead
+
+    :type id: str
+    :type client: Client
+    :type data: dict
+    :type paginated_size: int
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._url = f"{self.client.api}/digests/{self.id}"
+        self._comments = False
+        self._contents = False
+
+    @property
+    def _account_data(self):
+        if self._update or self._account_data_payload is None:
+            self._update = False
+
+            params = {
+                "contents"  : int(self._contents),
+                "comments"  : int(self._comments)
+            }
+
+            response = requests.get(self._url, headers = self.client.headers, params = params)
+
+            if response.status_code == 403:
+                self._account_data_payload = {}
+                return self._account_data_payload
+
+            try:
+                self._account_data_payload = response.json()["data"]
+            except KeyError:
+                raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self._account_data_payload
+
+    def __repr__(self):
+        return self.title
+
+    def __len__(self):
+        return self.post_count
+
+    # public methods
+
+    def read(self, count = None):
+        """
+        Mark posts in this digest as read.
+        Will mark all unread by default
+
+        :param count: number of posts to mark as read
+
+        :type count: int
+
+        :returns: self
+        :rtype: Digest
+        """
+        count = count if count else self.unread_count
+        response = requests.post(f"{self._url}/reads/{count}", headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self.fresh
+
+    # public properties
+
+    @property
+    def feed(self):
+        """
+        :returns: generator for posts that are in this digest
+        :rtype: generator<Post>
+        """
+        self._contents = True
+
+        for data in self._get_prop("items"):
+            yield Post(data["id"], self.client, data = data)
+
+    @property
+    def comments(self):
+        """
+        :returs: subscriber comments that are in this digest
+        :rtype: generator<Comment>
+        """
+        self._comments = True
+
+        for data in self._get_prop("subscription_comments"):
+            post = Post(data["contentId"], self.client)
+            root = Comment(data["rootCommentId"], self.client, post = post) if data.get("rootCommentId") else None
+            yield Comment(data["commentId"], self.client, post = post)
+
+    @property
+    def title(self):
+        """
+        :returs: the title of this digest
+        :rtype: str
+        """
+        return self._get_prop("title")
+
+    @property
+    def smile_count(self):
+        """
+        :returs: number of smiles in this digest
+        :rtype: int
+        """
+        return self._get_prop("likes")
+
+    @property
+    def total_smiles(self):
+        """
+        :returs: alias for ``Digest.smile_count```
+        :rtype: int
+        """
+        return self.smile_count
+
+    @property
+    def comment_count(self):
+        """
+        :returs: number of comments in this digest
+        :rtype: int
+        """
+        return self._get_prop("comments")
+
+    @property
+    def post_count(self):
+        """
+        :returs: number of posts in this digest
+        :rtype: int
+        """
+        return self._get_prop("item_count")
+
+    @property
+    def unread_count(self):
+        """
+        :returs: number of unread posts in this digest
+        :rtype: int
+        """
+        return self._get_prop("unreads")
+
+    @property
+    def count(self):
+        """
+        :returs: index of this digest
+        :rtype: int
+        """
+        return self._get_prop("count")

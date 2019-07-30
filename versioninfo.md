@@ -1,40 +1,52 @@
-### What's new
+# What's new
 
-#### 0.6.0
+### 0.7.0
+- generator for `client.digests` for iterating through available digests 
+- `objects.Digest` object, representing explore digests
+- `Client.channels` property, returning featured channels from explore
+- Basic auth is now a fallback, so read only things can be done without logging in
+- Messed with the style in `versioninfo.md` (that's this!)
+- `Channel` has been renamed to `chat` for better api consistency
+- references to `channel` and `channel` are being changed to `chat` and `Chat`, respectively. This may be buggy and missing some instances at first.
+- Messages now include file messages having `file_url`, `file_data`, `file_name`, and `file_type` properties
+- Messages listener now enscopes file messages
+- fixed incorrect docs in message type property
+
+### 0.6.0
 - `client.trending_channels` property, for trending channels in explore
 - generators for `client.home`, `client.featured`, `client.collective` feeds
 - `client.reads` generator for viewed posts
 - user `pic_url` property
-- channel `name` property
-- channel `add_operator` and `remove_operator` methods
-- channel `leave` method, so you can escape
+- chat `name` property
+- chat `add_operator` and `remove_operator` methods
+- chat `leave` method, so you can escape
 
-#### 0.5.2
+### 0.5.2
 - Fix bug getting `User.chat_channel`
 - Fix bug in `Message.author`
 - Don't read messages by default when sending
 - Disable req_id. It is bugged
 
-#### 0.5.1
+### 0.5.1
 - started keeping track of new features
 - use of `client.next_req_id` for messages (still won't work for pics), which had been implemented much earlier
 - being able to mark messages as read
-- fix a bug in `ChannelInvite.accept` and `ChannelInvite.decline` methods
+- fix a bug in `ChatInvite.accept` and `ChatInvite.decline` methods
 - fix a typo in docs (py 3.7, not 2.7)
-- `Channel.public` and `Channel.private` properties
-- Channels can now `kick()` users, and ChannelUser can now be `kick()`
-- Channels can now `invite()` users
-- Channels can now be frozen, either by setting `Channel.frozen = [True | False]` or by using `Channel.freeze`/`Channel.freeze` with auto unfreeze/freeze
+- `Chat.public` and `Chat.private` properties
+- Chats can now `kick()` users, and ChatUser can now be `kick()`
+- Chats can now `invite()` users
+- Chats can now be frozen, either by setting `Chat.frozen = [True | False]` or by using `Chat.freeze`/`Chat.freeze` with auto unfreeze/freeze
 
-#### 0.5 (from memory)
-- Channels can now be `read()`
-- Channels have message iterators
-- Channels now have member iterators
-- Channels now can report on admins and operators
-- Channels have a bunch of new properties
-- Channels can now have data fetched lazily, and no longer require a data payload
+### 0.5 (from memory)
+- Chats can now be `read()`
+- Chats have message iterators
+- Chats now have member iterators
+- Chats now can report on admins and operators
+- Chats have a bunch of new properties
+- Chats can now have data fetched lazily, and no longer require a data payload
 - Messages now report on file type
 - Messages can now be deleted with `delete()` (exparamental)
 - Messages can now have data fetched lazily, and no longer require a data payload
 - Messages have a bunch of new properties
-- ChannelUser now exists, for representing users relative to a Channel (exparamental)
+- ChatUser now exists, for representing users relative to a Chat (exparamental)

@@ -33,7 +33,7 @@ def paginated_format(data, items):
         "paging":   paging
     }
 
-def paginated_params(limit, prev, next):
+def paginated_params(limit, prev, next, ex_params):
     params = {
         "limit":    limit
     }
@@ -43,10 +43,10 @@ def paginated_params(limit, prev, next):
     elif prev:
         params["prev"] = prev
 
-    return params
+    return {**params, **ex_params}
 
-def paginated_data(source_url, data_key, headers, limit = 25, prev = None, next = None, post = False):
-    params = paginated_params(limit, prev, next)
+def paginated_data(source_url, data_key, headers, limit = 25, prev = None, next = None, post = False, ex_params = {}):
+    params = paginated_params(limit, prev, next, ex_params)
 
     if post:
         response = requests.post(source_url, headers = headers, data = params)
@@ -56,7 +56,10 @@ def paginated_data(source_url, data_key, headers, limit = 25, prev = None, next 
     if response.status_code != 200:
         raise BadAPIResponse(f"requesting {response.url} failed\n{response.text}")
 
-    return response.json()["data"][data_key]
+    if data_key:
+        return response.json()["data"][data_key]
+
+    return response.json()["data"]
 
 def paginated_generator(source):
     buffer = source()

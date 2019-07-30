@@ -1,7 +1,7 @@
 import json, requests
 from time import time
 
-from ifunny.objects import User, Message, ChannelInvite, Channel
+from ifunny.objects import User, Message, ChatInvite, Chat
 
 class Handler:
     def __init__(self, client):
@@ -18,7 +18,8 @@ class Handler:
             "PING": self._on_ping,
             "MESG": self._on_message,
             "LOGI": self._on_connect,
-            "SYEV": self._on_channel_update
+            "SYEV": self._on_channel_update,
+            "FILE": self._on_file
         }
 
     def resolve(self, data):
@@ -51,6 +52,14 @@ class Handler:
         message.invoked = self.client.resolve_command(message)
         self.get_ev("on_message")(message)
 
+    def _on_file(self, key, data):
+        if data["user"]["name"] == self.client.nick:
+            return
+
+        message = Message(data["msg_id"], data["channel_url"], self.client, data = data)
+        self.get_ev("on_message")(message)
+
+
     def _on_connect(self, key, data):
         self.client.sendbird_session_key = data["key"]
         self.client.socket.connected = True
@@ -70,27 +79,26 @@ class Handler:
         return client.socket.send(f"PONG{data}\n")
 
     def _on_channel_update(self, key, data):
-        channel = Channel(data["channel_url"], self.client)
+        chat = Chat(data["channel_url"], self.client)
         self.channel_update_codes.get(data["cat"], self._default_event)(data)
-        self.get_ev("on_channel_update")(channel)
+        self.get_ev("on_channel_update")(chat)
 
     def _on_invite(self, update):
-        invite = ChannelInvite(update, self.client)
+        invite = ChatInvite(update, self.client)
         if self.client.user in invite.invitees:
             return self.get_ev("on_invite")(invite)
 
         return self.get_ev("on_invite_broadcast")(invite)
 
-
     def _on_user_exit(self, data):
-        channel = Channel(data["channel_url"], self.client)
+        chat = Chat(data["channel_url"], self.client)
         user = User(data["data"]["user_id"], self.client)
-        self.get_ev("on_user_exit")(user, channel)
+        self.get_ev("on_user_exit")(user, chat)
 
     def _on_user_join(self, data):
-        channel = Channel(data["channel_url"], self.client)
+        chat = Chat(data["channel_url"], self.client)
         user = User(data["data"]["user_id"], self.client)
-        self.get_ev("on_user_join")(user, channel)
+        self.get_ev("on_user_join")(user, chat)
 
     # public decorators
 
@@ -114,11 +122,11 @@ class Event:
 """
 events allowed:
     on_message                  -> (Message):           a chat message is recieved
-    on_channel_update           -> (Channel):           something is done to update a channel that the client can see
-    on_invite (10020)           -> (ChannelInvite):     the client is sent an invite
-    on_invite_broadcast (10020) -> (ChannelInvite):     an invite is broadcast to people that are not the client
-    on_user_join (10000)        -> (User, Channel):     a user joins the channel
-    on_user_exit (10001)        -> (User, Channel):     a user leaves or is kicked from the channel
+    on_channel_update           -> (Chat):           something is done to update a chat that the client can see
+    on_invite (10020)           -> (ChatInvite):     the client is sent an invite
+    on_invite_broadcast (10020) -> (ChatInvite):     an invite is broadcast to people that are not the client
+    on_user_join (10000)        -> (User, Chat):     a user joins the chat
+    on_user_exit (10001)        -> (User, Chat):     a user leaves or is kicked from the chat
     on_ping                     -> (json data):         we are pinged
     on_connect                  -> (json data):         ifunny achnowledges our websocket connection
     on_default                  -> (any):               websocket messages matches no events that the client has implemented

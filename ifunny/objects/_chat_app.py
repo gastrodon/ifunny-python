@@ -40,13 +40,13 @@ class SendbirdMixin(ObjectMixin):
 
         return self._account_data_payload
 
-class Channel(SendbirdMixin):
+class Chat(SendbirdMixin):
     """
-    iFunny Channel object
+    iFunny Chat object
 
-    :param id: channel_url of the Channel. ``Channel.channel_url`` is aliased to this value, though ``id`` is more consistent with other mixin objects and how they update themselves.
-    :param client: Client that the Channel belongs to
-    :param data: A data payload for the Channel to pull from before requests
+    :param id: channel_url of the Chat. ``Chat.channel_url`` is aliased to this value, though ``id`` is more consistent with other mixin objects and how they update themselves.
+    :param client: Client that the Chat belongs to
+    :param data: A data payload for the Chat to pull from before requests
     :param paginated_size: number of items to get for each paginated request. If above the call type's maximum, that will be used instead
 
     :type id: str
@@ -67,7 +67,7 @@ class Channel(SendbirdMixin):
             limit = limit, next = next
         )
 
-        data["items"] = [ChannelUser(member["user_id"], self.client, self, sb_data = member) for member in data["items"]]
+        data["items"] = [ChatUser(member["user_id"], self.client, self, sb_data = member) for member in data["items"]]
 
         return data
 
@@ -113,14 +113,14 @@ class Channel(SendbirdMixin):
 
     def add_operator(self, user):
         """
-        Add an operator toi a Channel
+        Add an operator toi a Chat
 
         :params user: operator to add
 
-        :type user: User or ChannelUser
+        :type user: User or ChatUser
 
-        :returns: fresh list of this channel's operators
-        :rtype: List<ChannelUser>
+        :returns: fresh list of this chat's operators
+        :rtype: List<ChatUser>
         """
         data = {
             "operators" : user.id
@@ -129,7 +129,7 @@ class Channel(SendbirdMixin):
         response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}/operators", data = data, headers = self.client.headers)
 
         if response.status_code == 403:
-            raise Forbidden("You cannot modify the operators of this channel")
+            raise Forbidden("You cannot modify the operators of this chat")
 
         if response.status_code != 200:
             raise BadAPIResponse(f"{response.url}, {response.text}")
@@ -138,14 +138,14 @@ class Channel(SendbirdMixin):
 
     def remove_operator(self, user):
         """
-        Remove an operator from a Channel
+        Remove an operator from a Chat
 
         :params user: operator to remove
 
-        :type user: User or ChannelUser
+        :type user: User or ChatUser
 
-        :returns: fresh list of this channel's operators
-        :rtype: List<ChannelUser>
+        :returns: fresh list of this chat's operators
+        :rtype: List<ChatUser>
         """
         data = {
             "operators" : user.id
@@ -154,7 +154,7 @@ class Channel(SendbirdMixin):
         response = requests.delete(f"{self.client.api}/chats/channels/{self.channel_url}/operators", data = data, headers = self.client.headers)
 
         if response.status_code == 403:
-            raise Forbidden("You cannot modify the operators of this channel")
+            raise Forbidden("You cannot modify the operators of this chat")
 
         if response.status_code != 200:
             raise BadAPIResponse(f"{response.url}, {response.text}")
@@ -163,7 +163,7 @@ class Channel(SendbirdMixin):
 
     def join(self):
         """
-        Join this channel
+        Join this chat
 
         :returns: did this client join successfuly?
         :rtype: bool
@@ -174,7 +174,7 @@ class Channel(SendbirdMixin):
 
     def leave(self):
         """
-        Leave this channel
+        Leave this chat
 
         :returns: did this client leave successfuly?
         :rtype: bool
@@ -185,10 +185,10 @@ class Channel(SendbirdMixin):
 
     def read(self):
         """
-        Mark messages in a channel as read.
+        Mark messages in a chat as read.
 
         :retunrs: self
-        :rtype: Channel
+        :rtype: Chat
         """
         if not self.client.socket.active:
             raise ChatNotActive("The chat socket has not been started")
@@ -203,14 +203,14 @@ class Channel(SendbirdMixin):
 
     def invite(self, user):
         """
-        Invite a user or users to a channel.
+        Invite a user or users to a chat.
 
         :param user: User or list<User> of invitees
 
         :type user: User, or list<User>
 
         :returs: self
-        :rtype: Channel
+        :rtype: Chat
         """
 
         data = json.dumps({
@@ -220,7 +220,7 @@ class Channel(SendbirdMixin):
         response = requests.post(f"{self._url}/invite", data = data, headers = self.client.sendbird_headers)
 
         if response.status_code == 403:
-            raise Forbidden("You cannot invite users to this channel")
+            raise Forbidden("You cannot invite users to this chat")
 
         if response.status_code != 200:
             raise BadAPIResponse(f"{response.url}, {response.text}")
@@ -235,7 +235,7 @@ class Channel(SendbirdMixin):
         :type user: User
 
         :return: self
-        :rtype: Channel
+        :rtype: Chat
         """
         data = {
             "members": user.id
@@ -253,16 +253,16 @@ class Channel(SendbirdMixin):
 
     def freeze(self, until = 0, callback = None):
         """
-        Freeze a Channel, and set the update flag.
+        Freeze a Chat, and set the update flag.
 
         :param until: time in seconds to wait to unfreeze. If 0, there will be no unfreezing
-        :param callback: method to call when unfrozen, must accept single argument for Channel
+        :param callback: method to call when unfrozen, must accept single argument for Chat
 
         :type until: int
         :type callback: callable, or None
 
         :returs: self
-        :rtype: Channel
+        :rtype: Chat
         """
 
         self.frozen = True
@@ -274,16 +274,16 @@ class Channel(SendbirdMixin):
 
     def unfreeze(self, until = 0, callback = None):
         """
-        Freeze a Channel, and set the update flag.
+        Freeze a Chat, and set the update flag.
 
         :param until: time in seconds to wait to unfreeze. If 0, there will be no unfreezing
-        :param callback: method to call when unfrozen, must accept single argument for Channel
+        :param callback: method to call when unfrozen, must accept single argument for Chat
 
         :type until: int
         :type callback: callable, or None
 
         :returs: self
-        :rtype: Channel
+        :rtype: Chat
         """
 
         self.frozen = False
@@ -295,7 +295,7 @@ class Channel(SendbirdMixin):
 
     def send_message(self, message, read = False):
         """
-        Send a text message to a channel.
+        Send a text message to a chat.
 
         :param message: text that you will send
         :param read: do we mark the chat as read?
@@ -306,7 +306,7 @@ class Channel(SendbirdMixin):
         :raises: ChatNotActive if the attached client has not started the chat socket
 
         :retunrs: self
-        :rtype: Channel
+        :rtype: Chat
         """
         if not self.client.socket.active:
             raise ChatNotActive("The chat socket has not been started")
@@ -326,7 +326,7 @@ class Channel(SendbirdMixin):
 
     def send_image_url(self, image_url, width = 780, height = 780, read = False):
         """
-        Send an image to a channel from a url source.
+        Send an image to a chat from a url source.
 
         :param image_url: url where the image is located. This should point to the image itself, not a webpage with an image
         :param width: width of the image in pixels
@@ -341,7 +341,7 @@ class Channel(SendbirdMixin):
         :raises: ChatNotActive if the attached client has not started the chat socket
 
         :retunrs: self
-        :rtype: Channel
+        :rtype: Chat
         """
         if not self.client.socket.active:
             raise ChatNotActive("The chat socket has not been started")
@@ -379,15 +379,15 @@ class Channel(SendbirdMixin):
     @property
     def members(self):
         """
-        :retunrs: generator to iterate through channel members
-        :rtype: Generator<ChannelUser>
+        :retunrs: generator to iterate through chat members
+        :rtype: Generator<ChatUser>
         """
         return paginated_generator(self._members_paginated)
 
     @property
     def messages(self):
         """
-        :retunrs: generator to iterate through channel messages
+        :retunrs: generator to iterate through chat messages
         :rtype: Generator<Message>
         """
         return paginated_generator(self._messages_paginated)
@@ -396,7 +396,7 @@ class Channel(SendbirdMixin):
 
     @property
     def _data(self):
-        _json = json.loads(self._get_prop("channel").get("data"))
+        _json = json.loads(self._get_prop("chat").get("data"))
 
         if _json == "":
             _json = {}
@@ -414,33 +414,33 @@ class Channel(SendbirdMixin):
     @property
     def admins(self):
         """
-        :retunrs: list of channel admins, if group
-        :rtype: List<ChannelUser>, or None
+        :retunrs: list of chat admins, if group
+        :rtype: List<ChatUser>, or None
         """
         data = self._data.get("chatInfo", {}).get("adminsIdList")
 
         if not data:
             return None
 
-        return [ChannelUser(id, self.client, self) for id in data]
+        return [ChatUser(id, self.client, self) for id in data]
 
     @property
     def operators(self):
         """
-        :retunrs: list of channel operators, if group
-        :rtype: List<ChannelUser>, or None
+        :retunrs: list of chat operators, if group
+        :rtype: List<ChatUser>, or None
         """
         data = self._data.get("chatInfo", {}).get("operatorsIdList")
 
         if not data:
             return None
 
-        return [ChannelUser(id, self.client, self) for id in data]
+        return [ChatUser(id, self.client, self) for id in data]
 
     @property
     def name(self):
         """
-        :retunrs: the name of this channel
+        :retunrs: the name of this chat
         :rtype: str
         """
         return self._get_prop("name")
@@ -458,14 +458,14 @@ class Channel(SendbirdMixin):
     @property
     def title(self):
         """
-        Alias for Channel.name
+        Alias for Chat.name
         """
         return self.name
 
     @property
     def created(self):
         """
-        :returns: timestamp of this channels creation data
+        :returns: timestamp of this chats creation data
         :rtype: int
         """
         return self._get_prop("created_at")
@@ -473,7 +473,7 @@ class Channel(SendbirdMixin):
     @property
     def description(self):
         """
-        :retunrs: admin defined description of the channel, if group
+        :retunrs: admin defined description of the chat, if group
         :rtype: str, or None
         """
         return self._data.get("chatInfo", {}).get("description")
@@ -491,7 +491,7 @@ class Channel(SendbirdMixin):
     @property
     def frozen(self):
         """
-        :retunrs: is this channel frozen? Assumes False if attribute cannot be queried
+        :retunrs: is this chat frozen? Assumes False if attribute cannot be queried
         :rtype: bool
         """
         return self._data.get("chatInfo", {}).get("frozen")
@@ -499,7 +499,7 @@ class Channel(SendbirdMixin):
     @frozen.setter
     def frozen(self, val):
         """
-        Freeze or unfreeze a Channel
+        Freeze or unfreeze a Chat
         """
         if not isinstance(val, bool):
             raise TypeError("Value should be bool")
@@ -519,7 +519,7 @@ class Channel(SendbirdMixin):
     @property
     def direct(self):
         """
-        :retunrs: is this channel a private message channel?
+        :retunrs: is this chat a private message chat?
         :rtype: bool
         """
         return self.type == "chat"
@@ -527,7 +527,7 @@ class Channel(SendbirdMixin):
     @property
     def private(self):
         """
-        :retunrs: is this channel a private group?
+        :retunrs: is this chat a private group?
         :rtype: bool
         """
         return self.type == "group"
@@ -535,7 +535,7 @@ class Channel(SendbirdMixin):
     @property
     def public(self):
         """
-        :retunrs: is this channel a public group?
+        :retunrs: is this chat a public group?
         :rtype: bool
         """
         return self.type == "opengroup"
@@ -558,21 +558,21 @@ class Channel(SendbirdMixin):
         """
         return self._get_prop("is_muted")
 
-class ChannelUser(User):
+class ChatUser(User):
     """
-    A User attatched to a channel.
+    A User attatched to a chat.
     takes the same params as a User, with an extra set
 
-    :param channel: Channel that this user is in
+    :param chat: Chat that this user is in
     :param sb_data: A sendbird data payload for the user to pull from before requests
 
-    :type channel: Channel
+    :type chat: Chat
     :type sb_data: dict
     """
-    def __init__(self, id, client, channel, *args, sb_data = None, **kwargs):
+    def __init__(self, id, client, chat, *args, sb_data = None, **kwargs):
         super().__init__(id, client, *args, **kwargs)
-        self.channel = channel
-        self._sb_url = channel._url
+        self.chat = chat
+        self._sb_url = chat._url
         self._sb_data_payload = sb_data
 
     def _sb_prop(self, key, default = None, force = False):
@@ -588,13 +588,13 @@ class ChannelUser(User):
         Kick a member from a group
 
         :return: self
-        :rtype: ChannelUser
+        :rtype: ChatUser
         """
         data = {
             "members": self.id
         }
 
-        response = requests.put(f"{self.client.api}/chats/channels/{self.channel.channel_url}/kicked_members", data = data, headers = self.client.headers)
+        response = requests.put(f"{self.client.api}/chats/channels/{self.chat.channel_url}/kicked_members", data = data, headers = self.client.headers)
 
         if response.status_code == 403:
             raise Forbidden("You must be an operator or admin to kick members")
@@ -609,7 +609,7 @@ class ChannelUser(User):
         if self._update or self._sb_data_payload is None:
             self._update = False
 
-            members = [member for member in self.channel._account_data.get("members") if member["user_id"] == self.id]
+            members = [member for member in self.chat._account_data.get("members") if member["user_id"] == self.id]
 
             if not len(members):
                 members = [{}]
@@ -658,7 +658,7 @@ class Message(SendbirdMixin):
         self.invoked = None
 
         self.__channel_url = None
-        self.__channel = None
+        self.__chat = None
         self.__author = None
         self._url = f"{self.client.sendbird_api}/group_channels/{channel_url}/messages/{self.id}"
 
@@ -683,23 +683,23 @@ class Message(SendbirdMixin):
     def author(self):
         """
         :returns: the author of this message
-        :rtype: ChannelUser
+        :rtype: ChatUser
         """
         if not self.__author:
-            self.__author = ChannelUser(self._get_prop("user").get("guest_id"), self.client, self.channel)
+            self.__author = ChatUser(self._get_prop("user").get("guest_id"), self.client, self.chat)
 
         return self.__author
 
     @property
-    def channel(self):
+    def chat(self):
         """
-        :returns: Channel that this message exists in
-        :rtype: Channel
+        :returns: Chat that this message exists in
+        :rtype: Chat
         """
-        if not self.__channel:
-            self.__channel = Channel(self.channel_url, self.client)
+        if not self.__chat:
+            self.__chat = Chat(self.channel_url, self.client)
 
-        return self.__channel
+        return self.__chat
 
     @property
     def content(self):
@@ -712,7 +712,7 @@ class Message(SendbirdMixin):
     @property
     def channel_url(self):
         """
-        :returns: channel url for this messages channel
+        :returns: chat url for this messages chat
         :rtype: str
         """
         if not self.__channel_url:
@@ -723,23 +723,23 @@ class Message(SendbirdMixin):
     @property
     def send(self):
         """
-        :returns: the send() method of this messages channel for easy replies
+        :returns: the send() method of this messages chat for easy replies
         :rtype: function
         """
-        return self.channel.send_message
+        return self.chat.send_message
 
     @property
     def send_image_url(self):
         """
-        :retunrs: the send_image_url() method of this messages channel for easy replies
+        :retunrs: the send_image_url() method of this messages chat for easy replies
         :rtype: function
         """
-        return self.channel.send_image_url
+        return self.chat.send_image_url
 
     @property
     def type(self):
         """
-        :returns: type of channel (though it appears the only possible value is ``group``)
+        :returns: type of message. Text messages will return type MESG, while files return the file mime
         :rtype: str
         """
         return self._get_prop("type")
@@ -750,7 +750,7 @@ class Message(SendbirdMixin):
         :returns: message file url, if any
         :rtype: str, or None
         """
-        if self.type != "FILE":
+        if self.type == "MESG":
             return None
 
         return self._get_prop("file").get("url")
@@ -761,7 +761,7 @@ class Message(SendbirdMixin):
         :returns: file binary data, if any
         :rtype: str, or None
         """
-        if self.type != "FILE":
+        if self.type == "MESG":
             return None
 
         return requests.get(self.file_url, headers = self.client.sendbird_headers).content
@@ -772,7 +772,7 @@ class Message(SendbirdMixin):
         :returns: file type, if the message is a file
         :rtype: str, or None
         """
-        if self.type != "FILE":
+        if self.type == "MESG":
             return None
 
         return self._get_prop("file").get("type")
@@ -783,17 +783,17 @@ class Message(SendbirdMixin):
         :returns: file name, if the message is a file
         :rtype: str, or None
         """
-        if self.type != "FILE":
+        if self.type == "MESG":
             return None
 
         return self._get_prop("file").get("name")
 
-class ChannelInvite:
+class ChatInvite:
     """
-    Channel update class.
+    Chat update class.
     Created when an invite is recieved from the chat websocket.
 
-    :param data: channel json, data after prefix in a sendbird websocket response
+    :param data: chat json, data after prefix in a sendbird websocket response
     :param client: client that the object belongs to
 
     :type data: dict
@@ -811,7 +811,7 @@ class ChannelInvite:
         self.debug = data
         self.__data = data
 
-        self.__channel = None
+        self.__chat = None
         self.__channel_url = None
         self.__inviter = None
         self.__invitees = None
@@ -822,8 +822,8 @@ class ChannelInvite:
         Accept an incoming invitation, if it is from a user.
         If it is not, the method will do nothing and return None.
 
-        :returns: Channel that was joined, or None
-        :rtype: Channel, or None
+        :returns: Chat that was joined, or None
+        :rtype: Chat, or None
         """
         if not self.inviter or self.client.user not in self.invitees:
             return None
@@ -838,7 +838,7 @@ class ChannelInvite:
             raise BadAPIResponse(f"{response.url}, {response.text}")
 
         data = response.json()
-        return self.channel
+        return self.chat
 
     def decline(self):
         """
@@ -857,7 +857,7 @@ class ChannelInvite:
     @property
     def url(self):
         """
-        :retunrs: the request url to the incoming Channel
+        :retunrs: the request url to the incoming Chat
         :rtype: str
         """
         if not self.__url:
@@ -868,7 +868,7 @@ class ChannelInvite:
     @property
     def channel_url(self):
         """
-        :retunrs: the url to the incoming Channel
+        :retunrs: the url to the incoming Chat
         :rtype: str
         """
         if not self.__channel_url:
@@ -877,15 +877,15 @@ class ChannelInvite:
         return self.__channel_url
 
     @property
-    def channel(self):
+    def chat(self):
         """
-        :retunrs: the incoming Channel
-        :rtype: Channel
+        :retunrs: the incoming Chat
+        :rtype: Chat
         """
-        if not self.__channel:
-            self.__channel = Channel(self.channel_url, self.client)
+        if not self.__chat:
+            self.__chat = Chat(self.channel_url, self.client)
 
-        return self.__channel
+        return self.__chat
 
     @property
     def inviter(self):
@@ -900,7 +900,7 @@ class ChannelInvite:
                 self.__inviter = None
                 return self.__inviter
 
-            self.__inviter = ChannelUser(inviter["user_id"],self.client, self.channel, )
+            self.__inviter = ChatUser(inviter["user_id"],self.client, self.chat, )
 
         return self.__inviter
 
@@ -912,14 +912,14 @@ class ChannelInvite:
         """
         if not self.__invitees:
             invitees = self.__data["data"]["invitees"]
-            self.__invitees = [ChannelUser(user["user_id"], self.client, self.channel) for user in invitees]
+            self.__invitees = [ChatUser(user["user_id"], self.client, self.chat) for user in invitees]
 
         return self.__invitees
 
     @property
     def type(self):
         """
-        :returns: the type of the incoming channel data
+        :returns: the type of the incoming chat data
         :rtype: str
         """
         return self._status_codes.get(self.__data["cat"], f"unknown: {self.__data['cat']}")

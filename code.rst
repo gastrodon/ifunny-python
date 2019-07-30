@@ -20,10 +20,10 @@ Post
     :members:
     :undoc-members:
 
-Comment
--------
+Digest
+------
 
-.. autoclass:: ifunny.objects.Comment
+.. autoclass:: ifunny.objects.Digest
     :members:
     :undoc-members:
 
@@ -34,10 +34,24 @@ Channel
     :members:
     :undoc-members:
 
-ChannelUser
+Comment
+-------
+
+.. autoclass:: ifunny.objects.Comment
+    :members:
+    :undoc-members:
+
+Chat
+-------
+
+.. autoclass:: ifunny.objects.Chat
+    :members:
+    :undoc-members:
+
+ChatUser
 -----------
 
-.. autoclass:: ifunny.objects.ChannelUser
+.. autoclass:: ifunny.objects.ChatUser
     :members:
     :undoc-members:
 
@@ -48,9 +62,9 @@ Message
     :members:
     :undoc-members:
 
-ChannelInvite
+ChatInvite
 ---------------
 
-.. autoclass:: ifunny.objects.ChannelInvite
+.. autoclass:: ifunny.objects.ChatInvite
     :members:
     :undoc-members:

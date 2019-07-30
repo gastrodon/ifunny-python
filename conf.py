@@ -21,7 +21,7 @@ copyright = '2019, Zero <dakoolstwunn@gmail.com>'
 author = 'Zero <dakoolstwunn@gmail.com>'
 
 # The full version, including alpha/beta/rc tags
-release = '0.6.0'
+release = '0.7.0'
 
 
 # -- General configuration ---------------------------------------------------

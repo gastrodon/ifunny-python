@@ -10,7 +10,7 @@ from pathlib import Path
 from ifunny.client._handler import Handler, Event
 from ifunny.ext.commands import Command, Defaults
 from ifunny.client._sendbird import Socket
-from ifunny.objects import User, Channel, Notification, Post
+from ifunny.objects import User, Chat, Notification, Post, Channel, Digest
 from ifunny.util.methods import paginated_format, paginated_data, paginated_generator
 from ifunny.util.exceptions import ChatAlreadyActive, BadAPIResponse, ChatNotActive
 
@@ -106,7 +106,8 @@ class Client:
 
         return self.__account_data.get(key, None)
 
-    def _notifications_paginated(self, limit = 30, prev = None, next = None):
+    def _notifications_paginated(self, limit = 400, prev = None, next = None):
+        limit = min(limit, self.paginated_size)
         data = paginated_data(
             f"{self.api}/news/my", "news", self.headers,
             limit = limit, prev = prev, next = next
@@ -116,7 +117,7 @@ class Client:
 
         return paginated_format(data, items)
 
-    def _channels_paginated(self, limit = 100, next = None, prev = None, show_empty = True, show_read_recipt = True, show_member = True, public_mode = "all", super_mode = "all", distinct_mode = "all", member_state_filter = "all", order = "latest_last_message"):
+    def _chats_paginated(self, limit = 100, next = None, prev = None, show_empty = True, show_read_recipt = True, show_member = True, public_mode = "all", super_mode = "all", distinct_mode = "all", member_state_filter = "all", order = "latest_last_message"):
         limit = min(limit, 100)
 
         params = {
@@ -147,23 +148,25 @@ class Client:
 
         return {
             "paging":   paging,
-            "items": [Channel(data["channel_url"], self, data = data) for data in response["channels"]]
+            "items": [Chat(data["channel_url"], self, data = data) for data in response["channels"]]
         }
 
     def _reads_paginaged(self, limit = 30, next = None, prev = None):
+        limit = self.paginated_size
         data = paginated_data(
             f"{self.api}/feeds/reads", "content", self.headers,
-            limit = limit, prev = prev, next = prev
+            limit = limit, prev = prev, next = next
         )
 
         items = [Post(item["id"], self, data = item) for item in data["items"]]
 
         return paginated_format(data, items)
 
-    def _collective_paginated(self, limit = 30, next = None, prev = None):
+    def _collective_paginated(self, limit = 375, next = None, prev = None):
+        limit = min(limit, self.paginated_size)
         data = paginated_data(
             f"{self.api}/feeds/collective", "content", self.headers,
-            limit = limit, prev = prev, next = prev, post = True
+            limit = limit, prev = prev, next = next, post = True
         )
 
         items = [Post(item["id"], self, data = item) for item in data["items"]]
@@ -171,44 +174,39 @@ class Client:
         return paginated_format(data, items)
 
     def _featured_paginated(self, limit = 30, next = None, prev = None):
+        limit = self.paginated_size
         data = paginated_data(
             f"{self.api}/feeds/featured", "content", self.headers,
-            limit = limit, prev = prev, next = prev
+            limit = limit, prev = prev, next = next
         )
 
         items = [Post(item["id"], self, data = item) for item in data["items"]]
 
         return paginated_format(data, items)
 
-    def _home_paginated(self, limit = 30, next = None, prev = None):
+    def _home_paginated(self, limit = 100, next = None, prev = None):
+        limit = min(limit, self.paginated_size)
         data = paginated_data(
             f"{self.api}/timelines/home", "content", self.headers,
-            limit = limit, prev = prev, next = prev
+            limit = limit, prev = prev, next = next
         )
 
         items = [Post(item["id"], self, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
+
+    def _digests_paginated(self, limit = 5, next = None, prev = None):
+        limit = self.paginated_size
+        data = paginated_data(
+            f"{self.api}/digest_groups", None, self.headers,
+            limit = limit, prev = prev, next = next, ex_params = {"contents": 0}
+        )
+
+        items = [Digest(item["id"], self, data = item) for item in data["items"]]
 
         return paginated_format(data, items)
 
     # private properties
-
-    @property
-    def sendbird_headers(self):
-        """
-        Generate headers for a sendbird api call.
-        If a sendbird_session_key exists, it's added
-
-        :returns: sendbird-ready headers
-        :rtype: dict
-        """
-        _headers = {
-            "User-Agent": "jand/3.096"
-        }
-
-        if self.sendbird_session_key:
-            _headers["Session-Key"] = self.sendbird_session_key
-
-        return _headers
 
     @property
     def __login_token(self):
@@ -241,7 +239,7 @@ class Client:
         """
         if self._update or self._account_data_payload is None:
             self._update = False
-            self._account_data_payload = requests.get(f"{self.api}/account", headers = self.headers).json()["data"]
+            self._account_data_payload = requests.get(f"{self.api}/account", headers = self.headers).json()["data"] if self.authenticated else {}
 
         return self._account_data_payload
 
@@ -398,14 +396,14 @@ class Client:
         """
         return self.socket.stop()
 
-    def sendbird_upload(self, channel, file_data):
+    def sendbird_upload(self, chat, file_data):
         """
-        Upload an image to sendbird for a specific channel
+        Upload an image to sendbird for a specific chat
 
-        :param channel: channel to upload the file for
+        :param chat: chat to upload the file for
         :param file_data: binary file to upload
 
-        :type channel: ifunny.objects.Channel
+        :type chat: ifunny.objects.Chat
         :type file_data: bytes
 
         :returns: url to the uploaded content
@@ -418,7 +416,7 @@ class Client:
         data = {
             "thumbnail1"    : "780, 780",
             "thumbnail2"    : "320,320",
-            "channel_url"   : channel.channel_url
+            "channel_url"   : chat.channel_url
         }
 
         response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.sendbird_headers, files = files, data = data)
@@ -478,6 +476,24 @@ class Client:
     # public properties
 
     @property
+    def sendbird_headers(self):
+        """
+        Generate headers for a sendbird api call.
+        If a sendbird_session_key exists, it's added
+
+        :returns: sendbird-ready headers
+        :rtype: dict
+        """
+        _headers = {
+            "User-Agent": "jand/3.096"
+        }
+
+        if self.sendbird_session_key:
+            _headers["Session-Key"] = self.sendbird_session_key
+
+        return _headers
+
+    @property
     def headers(self):
         """
         Generate headers for iFunny requests dependant on authentication
@@ -489,8 +505,7 @@ class Client:
             "User-Agent"    : self.__user_agent,
         }
 
-        if self.__token:
-            _headers["Authorization"] = f"Bearer {self.__token}"
+        _headers["Authorization"] = f"Bearer {self.__token}" if self.__token else f"Basic {self.__login_token}"
 
         return _headers
 
@@ -634,10 +649,30 @@ class Client:
         return self
 
     @property
-    def trending_channels(self):
+    def trending_chats(self):
+        """
+        :returs: a list of trending chats featured in explore
+        :rtype: list<Chat>
+        """
         response = requests.get(f"{self.api}/chats/channels/trending", headers = self.headers)
-        
-        return [Channel(data["channel_url"], self, data = data) for data in response.json()["data"]["channels"]]
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return [Chat(data["channel_url"], self, data = data) for data in response.json()["data"]["channels"]]
+
+    @property
+    def channels(self):
+        """
+        :returns: a list of channels featured in explore
+        :rtype: list<Channel>
+        """
+        response = requests.get(f"{self.api}/channels", headers = self.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return [Channel(data["id"], self, data = data) for data in response.json()["data"]["channels"]["items"]]
 
     # public generators
 
@@ -705,15 +740,23 @@ class Client:
         return paginated_generator(self._featured_paginated)
 
     @property
-    def channels(self):
+    def chats(self):
         """
-        Generator for a CLient's chat channels.
-        Each iteration will return the next channel, in order of last message
+        Generator for a Client's chats.
+        Each iteration will return the next chat, in order of last message
 
-        :returns: generator iterating through channels
-        :rtype: Generator<Channel>
+        :returns: generator iterating through chats
+        :rtype: Generator<Chat>
         """
         if not self.sendbird_session_key:
             raise ChatNotActive("Chat must be started at least once to get a session key")
 
-        return paginated_generator(self._channels_paginated)
+        return paginated_generator(self._chats_paginated)
+
+    @property
+    def digests(self):
+        """
+        :returns: digests available to the client from explore
+        :rtype: generator<Digest>
+        """
+        return paginated_generator(self._digests_paginated)
