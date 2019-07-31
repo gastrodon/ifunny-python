@@ -61,8 +61,8 @@ def paginated_data(source_url, data_key, headers, limit = 25, prev = None, next 
 
     return response.json()["data"]
 
-def paginated_generator(source):
-    buffer = source()
+def paginated_generator(source, *args):
+    buffer = source(*args)
 
     while True:
         for item in buffer["items"]:
@@ -71,7 +71,7 @@ def paginated_generator(source):
         if not buffer["paging"]["next"]:
             break
 
-        buffer = source(next = buffer["paging"]["next"])
+        buffer = source(*args, next = buffer["paging"]["next"])
 
 def get_slice(source, query):
     index = source.find(query)

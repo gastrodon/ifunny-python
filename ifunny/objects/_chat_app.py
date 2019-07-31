@@ -26,6 +26,9 @@ class SendbirdMixin(ObjectMixin):
     @property
     def _account_data(self):
         if self._update or self._account_data_payload is None:
+            if not self.client.sendbird_session_key:
+                raise ChatNotActive("Chat must have been activated to get sendbird api token")
+
             self._update = False
             response = requests.get(self._url, headers = self.client.sendbird_headers)
 
@@ -58,6 +61,9 @@ class Chat(SendbirdMixin):
         super().__init__(*args, **kwargs)
         self.channel_url = self.id
         self._url = f"{self.client.sendbird_api}/group_channels/{self.id}"
+
+    def __repr__(self):
+        return self.title
 
     def _members_paginated(self, limit = None, next = None):
         limit = limit if limit else self.client.paginated_size
@@ -187,7 +193,7 @@ class Chat(SendbirdMixin):
         """
         Mark messages in a chat as read.
 
-        :retunrs: self
+        :returns: self
         :rtype: Chat
         """
         if not self.client.socket.active:
@@ -305,7 +311,7 @@ class Chat(SendbirdMixin):
 
         :raises: ChatNotActive if the attached client has not started the chat socket
 
-        :retunrs: self
+        :returns: self
         :rtype: Chat
         """
         if not self.client.socket.active:
@@ -340,7 +346,7 @@ class Chat(SendbirdMixin):
 
         :raises: ChatNotActive if the attached client has not started the chat socket
 
-        :retunrs: self
+        :returns: self
         :rtype: Chat
         """
         if not self.client.socket.active:
@@ -379,16 +385,16 @@ class Chat(SendbirdMixin):
     @property
     def members(self):
         """
-        :retunrs: generator to iterate through chat members
-        :rtype: Generator<ChatUser>
+        :returns: generator to iterate through chat members
+        :rtype: generator<ChatUser>
         """
         return paginated_generator(self._members_paginated)
 
     @property
     def messages(self):
         """
-        :retunrs: generator to iterate through chat messages
-        :rtype: Generator<Message>
+        :returns: generator to iterate through chat messages
+        :rtype: generator<Message>
         """
         return paginated_generator(self._messages_paginated)
 
@@ -396,10 +402,7 @@ class Chat(SendbirdMixin):
 
     @property
     def _data(self):
-        _json = json.loads(self._get_prop("chat").get("data"))
-
-        if _json == "":
-            _json = {}
+        _json = json.loads(self._get_prop("data", "{}")).get("chatInfo", {})
 
         return _json
 
@@ -414,7 +417,7 @@ class Chat(SendbirdMixin):
     @property
     def admins(self):
         """
-        :retunrs: list of chat admins, if group
+        :returns: list of chat admins, if group
         :rtype: List<ChatUser>, or None
         """
         data = self._data.get("chatInfo", {}).get("adminsIdList")
@@ -427,7 +430,7 @@ class Chat(SendbirdMixin):
     @property
     def operators(self):
         """
-        :retunrs: list of chat operators, if group
+        :returns: list of chat operators, if group
         :rtype: List<ChatUser>, or None
         """
         data = self._data.get("chatInfo", {}).get("operatorsIdList")
@@ -438,15 +441,16 @@ class Chat(SendbirdMixin):
         return [ChatUser(id, self.client, self) for id in data]
 
     @property
-    def name(self):
+    def title(self):
         """
-        :retunrs: the name of this chat
+        :returns: the title of this chat
         :rtype: str
         """
-        return self._get_prop("name")
+        _title = self._get_prop("title")
+        return _title if _title else self._get_prop("channel").get("name")
 
-    @name.setter
-    def name(self, value):
+    @title.setter
+    def title(self, value):
         data = {
             "title": str(value),
             "description": self.description
@@ -456,11 +460,11 @@ class Chat(SendbirdMixin):
         self._update = True
 
     @property
-    def title(self):
+    def name(self):
         """
-        Alias for Chat.name
+        Alias for Chat.title
         """
-        return self.name
+        return self.title
 
     @property
     def created(self):
@@ -473,15 +477,16 @@ class Chat(SendbirdMixin):
     @property
     def description(self):
         """
-        :retunrs: admin defined description of the chat, if group
+        :returns: admin defined description of the chat, if group
         :rtype: str, or None
         """
-        return self._data.get("chatInfo", {}).get("description")
+        _desc = self._get_prop("description")
+        return _desc if _desc else self._data.get("description")
 
     @description.setter
     def description(self, value):
         data = {
-            "title": self.name,
+            "title": self.title,
             "description": str(value)
         }
 
@@ -491,7 +496,7 @@ class Chat(SendbirdMixin):
     @property
     def frozen(self):
         """
-        :retunrs: is this chat frozen? Assumes False if attribute cannot be queried
+        :returns: is this chat frozen? Assumes False if attribute cannot be queried
         :rtype: bool
         """
         return self._data.get("chatInfo", {}).get("frozen")
@@ -519,7 +524,7 @@ class Chat(SendbirdMixin):
     @property
     def direct(self):
         """
-        :retunrs: is this chat a private message chat?
+        :returns: is this chat a private message chat?
         :rtype: bool
         """
         return self.type == "chat"
@@ -527,7 +532,7 @@ class Chat(SendbirdMixin):
     @property
     def private(self):
         """
-        :retunrs: is this chat a private group?
+        :returns: is this chat a private group?
         :rtype: bool
         """
         return self.type == "group"
@@ -535,7 +540,7 @@ class Chat(SendbirdMixin):
     @property
     def public(self):
         """
-        :retunrs: is this chat a public group?
+        :returns: is this chat a public group?
         :rtype: bool
         """
         return self.type == "opengroup"
@@ -553,7 +558,7 @@ class Chat(SendbirdMixin):
     @property
     def muted(self):
         """
-        :retunrs: is this chat muted by the client?
+        :returns: is this chat muted by the client?
         :rtype: bool
         """
         return self._get_prop("is_muted")
@@ -571,9 +576,9 @@ class ChatUser(User):
     """
     def __init__(self, id, client, chat, *args, sb_data = None, **kwargs):
         super().__init__(id, client, *args, **kwargs)
-        self.chat = chat
         self._sb_url = chat._url
         self._sb_data_payload = sb_data
+        self.__chat = chat
 
     def _sb_prop(self, key, default = None, force = False):
         if not self._sb_data.get(key, None) or force:
@@ -641,6 +646,10 @@ class ChatUser(User):
         :rtype: bool
         """
         return self._sb_prop("online")
+
+    @property
+    def chat(self):
+        return self.__chat
 
 class Message(SendbirdMixin):
     """
@@ -731,7 +740,7 @@ class Message(SendbirdMixin):
     @property
     def send_image_url(self):
         """
-        :retunrs: the send_image_url() method of this messages chat for easy replies
+        :returns: the send_image_url() method of this messages chat for easy replies
         :rtype: function
         """
         return self.chat.send_image_url
@@ -857,7 +866,7 @@ class ChatInvite:
     @property
     def url(self):
         """
-        :retunrs: the request url to the incoming Chat
+        :returns: the request url to the incoming Chat
         :rtype: str
         """
         if not self.__url:
@@ -868,7 +877,7 @@ class ChatInvite:
     @property
     def channel_url(self):
         """
-        :retunrs: the url to the incoming Chat
+        :returns: the url to the incoming Chat
         :rtype: str
         """
         if not self.__channel_url:
@@ -879,7 +888,7 @@ class ChatInvite:
     @property
     def chat(self):
         """
-        :retunrs: the incoming Chat
+        :returns: the incoming Chat
         :rtype: Chat
         """
         if not self.__chat:
@@ -890,7 +899,7 @@ class ChatInvite:
     @property
     def inviter(self):
         """
-        :retunrs: if this update is an invite, returns the inviter
+        :returns: if this update is an invite, returns the inviter
         :rtype: User, or None
         """
         if not self.__inviter:
@@ -907,7 +916,7 @@ class ChatInvite:
     @property
     def invitees(self):
         """
-        :retunrs: if this update is an invite, returns the invitees
+        :returns: if this update is an invite, returns the invitees
         :rtype: list<User>, or None
         """
         if not self.__invitees:

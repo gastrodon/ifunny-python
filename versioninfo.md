@@ -1,7 +1,17 @@
 # What's new
 
+### 0.8.0
+- A bunch of setters for properties in `Post` and `User`
+- `client.post_image[_url]` can now have scheduled posts
+- `client.search_users`, `client.search_chats`, `client.search_tags` and `client.suggested_tags` for searching
+- fixed bugs caused by sendbird vs ifunny api inconsistencies
+- reply comments can now return replies
+- `Comment.parent`, `Comment.children` and `Comment.siblings` generators for comments attached to others. These are not very fast
+- Fix a bug getting certain properties that are sourced from `foo._get_prop("num")` from partial payloads raising a KeyError
+- Add a check for deleted objects in `ObjectMixin` and made behavior more consistent
+
 ### 0.7.0
-- generator for `client.digests` for iterating through available digests 
+- generator for `client.digests` for iterating through available digests
 - `objects.Digest` object, representing explore digests
 - `Client.channels` property, returning featured channels from explore
 - Basic auth is now a fallback, so read only things can be done without logging in

@@ -1,6 +1,7 @@
 import requests, json
 
 from urllib.parse import quote_plus as urlencode
+from collections.abc import Iterable
 
 from ifunny import objects
 
@@ -49,6 +50,10 @@ class ObjectMixin:
                 self._account_data_payload = {}
                 return self._account_data_payload
 
+            if response.status_code == 404:
+                self._account_data_payload = {"is_deleted" : True}
+                return self._account_data_payload
+
             try:
                 self._account_data_payload = response.json()["data"]
             except KeyError:
@@ -59,13 +64,20 @@ class ObjectMixin:
     @property
     def fresh(self):
         """
-        Return self after setting the update flag
-
-        :returns: self
+        :returns: self after setting the update flag
         :rtype: Subclass of ObjectMixin
         """
         self._update = True
         return self
+
+    @property
+    def is_deleted(self):
+        """
+        :returns: is this object deleted?
+        :rtype: bool
+        """
+        return self._get_prop("is_deleted", default = False)
+
 
     def __eq__(self, other):
         return self.id == other
@@ -179,20 +191,20 @@ class User(ObjectMixin):
     # actions
 
     @classmethod
-    def by_nick(cls, nickname, client):
+    def by_nick(cls, nick, client):
         """
-        Get a user from their nickname.
+        Get a user from their nick.
 
-        :param nickname: nickname of the user to query. If this user does not exist, nothing will be returned
+        :param nick: nick of the user to query. If this user does not exist, nothing will be returned
         :param client: the Client to bind the returned user object to
 
-        :type nickname: str
+        :type nick: str
         :type client: Client
 
-        :returns: A User with a given nickname, if they exist
+        :returns: A User with a given nick, if they exist
         :rtype: User, or None
         """
-        response = requests.get(f"{client.api}/users/by_nick/{nickname}", headers = client.headers)
+        response = requests.get(f"{client.api}/users/by_nick/{nick}", headers = client.headers)
 
         if response.status_code == 404:
             return None
@@ -344,32 +356,82 @@ class User(ObjectMixin):
 
         return self.fresh
 
+    def set_nick(self, value):
+        """
+        Change the nick of a User.
+        This user must be you
+
+        :param value: what to change the nick to
+
+        :type value: str
+
+        :returns: self
+        :rtype: User
+        """
+        data = {
+            "nick"                      : str(value),
+            "messaging_privacy_status"  : self.chat_privacy,
+            "is_private"                : 0
+        }
+
+        response = requests.put(f"{self.client.api}/account", data = data, headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return response
+
+    def set_about(self, value):
+        """
+        Change the about of a User.
+        This user must be you
+
+        :param value: what to change the about to
+
+        :type value: str
+
+        :returns: self
+        :rtype: User
+        """
+        data = {
+            "about"                     : str(value),
+            "messaging_privacy_status"  : self.chat_privacy,
+            "is_private"                : 0
+        }
+
+        response = requests.put(f"{self.client.api}/account", data = data, headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return response
+
     # public generators
 
     @property
     def timeline(self):
         """
-        :returns: Generator iterating user posts
+        :returns: generator iterating user posts
 
-        :rtype: Generator<Post>
+        :rtype: generator<Post>
         """
         return paginated_generator(self._timeline_paginated)
 
     @property
     def subscribers(self):
         """
-        :returns: Generator iterating user subscipbers
+        :returns: generator iterating user subscipbers
 
-        :rtype: Generator<User>
+        :rtype: generator<User>
         """
         return paginated_generator(self._subscribers_paginated)
 
     @property
     def subscriptions(self):
         """
-        :returns: Generator iterating user subscriptions
+        :returns: generator iterating user subscriptions
 
-        :rtype: Generator<User>
+        :rtype: generator<User>
         """
         return paginated_generator(self._subscriptions_paginated)
 
@@ -380,63 +442,92 @@ class User(ObjectMixin):
     @property
     def nick(self):
         """
-        :retunrs: this users nickname
+        :returns: this users nickname
         :rtype: str
         """
         return self._get_prop("nick")
 
+    @nick.setter
+    def nick(self, value):
+        if self != self.client.user:
+            raise Forbidden("You cannot change the nick of another user")
+
+        self.set_nick(str(value))
+
     @property
     def about(self):
         """
-        :retunrs: this users about section
+        :returns: this users about section
         :rtype: str
         """
         return self._get_prop("about")
 
+    @about.setter
+    def about(self, value):
+        if self != self.client.user:
+            raise Forbidden("You cannot change the about of another user")
+
+        self.set_about(str(value))
+
     @property
     def posts(self):
         """
-        :retunrs: this users post count
+        :returns: this users post count
         :rtype: int
         """
-        return self._get_prop("num")["featured"]
+        if self._get_prop("num").get("featured"):
+            return self._get_prop("num").get("featured")
+        else:
+            return self.fresh._get_prop("num").get("featured")
 
     @property
     def featured(self):
         """
-        :retunrs: this users feature count
+        :returns: this users feature count
         :rtype: int
         """
-        return self._get_prop("num")["featured"]
+        if self._get_prop("num").get("featured"):
+            return self._get_prop("num").get("featured")
+        else:
+            return self.fresh._get_prop("num").get("featured")
 
     @property
     def total_smiles(self):
         """
-        :retunrs: this users smile count
+        :returns: this users smile count
         :rtype: int
         """
-        return self._get_prop("num")["total_smiles"]
+        if self._get_prop("num").get("total_smiles"):
+            return self._get_prop("num").get("total_smiles")
+        else:
+            return self.fresh._get_prop("num").get("total_smiles")
 
     @property
     def subscriber_count(self):
         """
-        :retunrs: this users subscriber count
+        :returns: this users subscriber count
         :rtype: int
         """
-        return self._get_prop("num")["subscribers"]
+        if self._get_prop("num").get("subscribers"):
+            return self._get_prop("num").get("subscribers")
+        else:
+            return self.fresh._get_prop("num").get("subscribers")
 
     @property
     def subscription_count(self):
         """
-        :retunrs: this users subscruption count
+        :returns: this users subscruption count
         :rtype: int
         """
-        return self._get_prop("num")["subscriptions"]
+        if self._get_prop("num").get("subscriptions"):
+            return self._get_prop("num").get("subscriptions")
+        else:
+            return self.fresh._get_prop("num").get("subscriptions")
 
     @property
     def is_verified(self):
         """
-        :retunrs: is this user verified?
+        :returns: is this user verified?
         :rtype: bool
         """
         return self._get_prop("is_verified")
@@ -444,7 +535,7 @@ class User(ObjectMixin):
     @property
     def is_banned(self):
         """
-        :retunrs: is this user banned?
+        :returns: is this user banned?
         :rtype: bool
         """
         return self._get_prop("is_banned")
@@ -452,7 +543,7 @@ class User(ObjectMixin):
     @property
     def is_deleted(self):
         """
-        :retunrs: is this user deleted?
+        :returns: is this user deleted?
         :rtype: bool
         """
         return self._get_prop("is_deleted")
@@ -468,7 +559,7 @@ class User(ObjectMixin):
     @property
     def rank(self):
         """
-        :retunrs: this users meme experience rank
+        :returns: this users meme experience rank
         :rtype: str
         """
         return self._get_prop("meme_experience")["rank"]
@@ -476,7 +567,7 @@ class User(ObjectMixin):
     @property
     def nick_color(self):
         """
-        :retunrs: this users nickname color
+        :returns: this users nickname color
         :rtype: str
         """
         return self._get_prop("nick_color")
@@ -484,7 +575,7 @@ class User(ObjectMixin):
     @property
     def chat_privacy(self):
         """
-        :retunrs: this users chat privacy settings (privacy, public, subscribers)
+        :returns: this users chat privacy settings (privacy, public, subscribers)
         :rtype: str
         """
         return self._get_prop("messaging_privacy_status")
@@ -492,7 +583,7 @@ class User(ObjectMixin):
     @property
     def chat_url(self):
         """
-        :retunrs: this users chat url, if ``user.can_chat``
+        :returns: this users chat url, if ``user.can_chat``
         :rtype: str
         """
         if not self.can_chat or self == self.client.user:
@@ -513,7 +604,7 @@ class User(ObjectMixin):
     @property
     def chat(self):
         """
-        :retunrs: this users chat chat, if ``user.can_chat``
+        :returns: this users chat chat, if ``user.can_chat``
         :rtype: Chat
         """
         if self.chat_url:
@@ -524,7 +615,7 @@ class User(ObjectMixin):
     @property
     def pic_url(self):
         """
-        :retunrs: url to this accounts profile image, if any
+        :returns: url to this accounts profile image, if any
         :rtype: str, or None
         """
         _data = self._get_prop("photo")
@@ -535,15 +626,22 @@ class User(ObjectMixin):
     @property
     def blocked(self):
         """
-        :retunrs: is this user blocked by me?
+        :returns: is this user blocked by me?
         :rtype: bool
         """
         return self._get_prop("is_blocked")
 
+    @blocked.setter
+    def blocked(self, value):
+        if value:
+            self.block()
+        else:
+            self.unblock()
+
     @property
     def blocking_me(self):
         """
-        :retunrs: is this user blocking me?
+        :returns: is this user blocking me?
         :rtype: bool
         """
         return self._get_prop("are_you_blocked")
@@ -551,7 +649,7 @@ class User(ObjectMixin):
     @property
     def can_chat(self):
         """
-        :retunrs: can I chat with this user?
+        :returns: can I chat with this user?
         :rtype: bool
         """
         return self._get_prop("is_available_for_chat", False)
@@ -559,7 +657,7 @@ class User(ObjectMixin):
     @property
     def subscribed_to_updates(self):
         """
-        :retunrs: is this user subscribed to updates?
+        :returns: is this user subscribed to updates?
         :rtype: bool
         """
         return self._get_prop("is_subscribed_to_updates", False)
@@ -567,7 +665,7 @@ class User(ObjectMixin):
     @property
     def is_subscribed(self):
         """
-        :retunrs: is this user subscribed to me?
+        :returns: is this user subscribed to me?
         :rtype: bool
         """
         return self._get_prop("is_in_subscribers", False)
@@ -575,7 +673,7 @@ class User(ObjectMixin):
     @property
     def is_subscription(self):
         """
-        :retunrs: am I subscribed to this user?
+        :returns: am I subscribed to this user?
         :rtype: bool
         """
         return self._get_prop("is_in_subscriptions", False)
@@ -754,7 +852,8 @@ class Post(ObjectMixin):
 
     def remove_republish(self):
         """
-        Un-republish this post. This should work on an instance of this post from any User. If this post is not republished, nothing will happen.
+        Un-republish this post. This should work on an instance of this post from any User.
+        If this post is not republished, nothing will happen.
 
         :returns: self
         :rtype: Post
@@ -807,8 +906,8 @@ class Post(ObjectMixin):
 
     def set_tags(self, tags):
         """
-        Set the tags on your own post. If the post is not owned by the client, NotOwnContent exception is raised
-        Tags cannot include space characters, so those will be replace dropped
+        Set the tags on your own post. If the post is not owned by the client, NotOwnContent exception is raised.
+        Tags cannot include space characters, so those will be replace dropped.
 
         :param tags: list of tags to add to set
 
@@ -837,9 +936,9 @@ class Post(ObjectMixin):
 
     def delete(self):
         """
-        Delete a post owned by the Client
+        Delete a post owned by the Client.
 
-        :retunrs: self
+        :returns: self
 
         :rtype: Post
         """
@@ -847,13 +946,14 @@ class Post(ObjectMixin):
         response = requests.delete(self._url, headers = self.client.headers)
 
         if response.status_code != 200:
-            raise BadAPIResponse(self.text)
+            raise BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
     def pin(self):
         """
-        Pin a post to the client user
+        Pin a post to the client user.
+        Note that trying to pin a pinned post will return a ``403``.
 
         :returns: self
 
@@ -869,7 +969,7 @@ class Post(ObjectMixin):
 
     def unpin(self):
         """
-        Unpin a post to the client user
+        Unpin a post to the client user.
 
         :returns: self
 
@@ -883,23 +983,81 @@ class Post(ObjectMixin):
 
         return self.fresh
 
+    def set_schedule(self, schedule):
+        """
+        Update a delated posts scheduled time
+        If post is not delated, nothing will happen
+
+        :param schedule: new timestamp to be posted at
+
+        :type schedule: int
+
+        :returns: self
+        :rtype: Post
+        """
+        if not self.state == "delayed":
+            return None
+
+        data = {
+            "publish_at"    : int(schedule),
+            "visibility"    : self.visibility,
+            "tags"          : json.dumps(self.tags)
+        }
+
+        response = requests.patch(f"{self._url}", data = data, headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self
+
+    def set_visibility(self, visibility):
+        """
+        Update a delated posts visibility
+        If post is not delated, nothing will happen
+
+        :param visibility: visibility type. Can be of (``public``, ``subscribers``)
+
+        :type visibility: str
+
+        :returns: self
+        :rtype: Post
+        """
+        if not self.state == "delated":
+            return None
+
+        if visibility not in {"public", "subscribers"}:
+            raise ValueError(f"visibility cannot be {visibility}")
+
+        data = {
+            "visibility"    : visibility,
+            "tags"          : json.dumps(self.tags)
+        }
+
+        response = requests.patch(f"{self._url}", data = data, headers = self.client.headers)
+
+        if response.status_code != 200:
+            raise BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self
+
     # public generators
 
     @property
     def smiles(self):
         """
-        :returns: Generator iterating post smiles
+        :returns: generator iterating post smiles
 
-        :rtype: Generator<User>
+        :rtype: generator<User>
         """
         return paginated_generator(self._smiles_paginated)
 
     @property
     def comments(self):
         """
-        :returns: Generator iterating post comments
+        :returns: generator iterating post comments
 
-        :rtype: Generator<Comment>
+        :rtype: generator<Comment>
         """
         return paginated_generator(self._comments_paginated)
 
@@ -919,7 +1077,10 @@ class Post(ObjectMixin):
         :returns: post's smile count
         :rtype: int
         """
-        return self._get_prop("num")["smiles"]
+        if self._get_prop("num").get("smiles"):
+            return self._get_prop("num").get("smiles")
+        else:
+            return self.fresh._get_prop("num").get("smiles")
 
     @property
     def unsmile_count(self):
@@ -927,7 +1088,10 @@ class Post(ObjectMixin):
         :returns: post's unsmile count
         :rtype: int
         """
-        return self._get_prop("num")["unsmiles"]
+        if self._get_prop("num").get("unsmiles"):
+            return self._get_prop("num").get("unsmiles")
+        else:
+            return self.fresh._get_prop("num").get("unsmiles")
 
     @property
     def guest_smile_count(self):
@@ -935,7 +1099,10 @@ class Post(ObjectMixin):
         :returns: post's smile count by guests
         :rtype: int
         """
-        return self._get_prop("num")["guest_smiles"]
+        if self._get_prop("num").get("guest_smiles"):
+            return self._get_prop("num").get("guest_smiles")
+        else:
+            return self.fresh._get_prop("num").get("guest_smiles")
 
     @property
     def comment_count(self):
@@ -943,7 +1110,10 @@ class Post(ObjectMixin):
         :returns: post's comment count
         :rtype: int
         """
-        return self._get_prop("num")["comments"]
+        if self._get_prop("num").get("comments"):
+            return self._get_prop("num").get("comments")
+        else:
+            return self.fresh._get_prop("num").get("comments")
 
     @property
     def views(self):
@@ -951,7 +1121,10 @@ class Post(ObjectMixin):
         :returns: post's view count count
         :rtype: int
         """
-        return self._get_prop("num")["views"]
+        if self._get_prop("num").get("views"):
+            return self._get_prop("num").get("views")
+        else:
+            return self.fresh._get_prop("num").get("views")
 
     @property
     def republication_count(self):
@@ -959,7 +1132,10 @@ class Post(ObjectMixin):
         :returns: post's republication count
         :rtype: int
         """
-        return self._get_prop("num")["republished"]
+        if self._get_prop("num").get("republished"):
+            return self._get_prop("num").get("republished")
+        else:
+            return self.fresh._get_prop("num").get("republished")
 
     @property
     def shares(self):
@@ -967,7 +1143,10 @@ class Post(ObjectMixin):
         :returns: post's share count
         :rtype: int
         """
-        return self._get_prop("num")["shares"]
+        if self._get_prop("num").get("shares"):
+            return self._get_prop("num").get("shares")
+        else:
+            return self.fresh._get_prop("num").get("shares")
 
     @property
     def author(self):
@@ -1003,15 +1182,22 @@ class Post(ObjectMixin):
         return self._get_prop("is_featured")
 
     @property
-    def is_pinned(self):
+    def pinned(self):
         """
         :returns: is this post pinned on it's authors profile?
         :rtype: bool
         """
         return self._get_prop("is_pinned")
 
+    @pinned.setter
+    def pinned(self, value):
+        if value:
+            self.pin()
+        else:
+            self.unpin()
+
     @property
-    def is_abused(self):
+    def abused(self):
         """
         :returns: was this post removed by moderators?
         :rtype: bool
@@ -1034,6 +1220,16 @@ class Post(ObjectMixin):
         """
         return self._get_prop("tags")
 
+    @tags.setter
+    def tags(self, value):
+        if isinstance(value, str):
+            value = [value]
+
+        if not isinstance(value, Iterable):
+            raise ValueError("value must be iterable")
+
+        self.set_tags(list(value))
+
     @property
     def visibility(self):
         """
@@ -1041,6 +1237,10 @@ class Post(ObjectMixin):
         :rtype: str (public, subscribers, ect)
         """
         return self._get_prop("visibility")
+
+    @visibility.setter
+    def visibility(self, value):
+        self.set_visibility(value)
 
     @property
     def state(self):
@@ -1101,12 +1301,19 @@ class Post(ObjectMixin):
     # authentication dependant attributes
 
     @property
-    def is_republished(self):
+    def republished(self):
         """
         :returns: is this post a republication?
         :rtype: bool
         """
         return self._get_prop("is_republished")
+
+    @republished.setter
+    def republished(self, value):
+        if value:
+            self.republish()
+        else:
+            self.remove_republish()
 
     @property
     def smiled(self):
@@ -1116,6 +1323,13 @@ class Post(ObjectMixin):
         """
         return self._get_prop("is_smiled")
 
+    @smiled.setter
+    def smiled(self, value):
+        if value:
+            self.smile()
+        else:
+            self.remove_smile()
+
     @property
     def unsmiled(self):
         """
@@ -1123,6 +1337,13 @@ class Post(ObjectMixin):
         :rtype: bool
         """
         return self._get_prop("is_unsmiled")
+
+    @unsmiled.setter
+    def unsmiled(self, value):
+        if value:
+            self.unsmile()
+        else:
+            self.remove_unsmile()
 
 class Comment(CommentMixin):
     """
@@ -1326,12 +1547,37 @@ class Comment(CommentMixin):
     @property
     def replies(self):
         """
-        :returns: Generator iterating comment replies
-
-        :rtype: Generator<Comment>
+        :returns: generator iterating comment replies
+        :rtype: generator<Comment>
         """
         if not self.depth:
-            return paginated_generator(self._replies_paginated)
+            for x in paginated_generator(self._replies_paginated):
+                yield x
+        else:
+            for _comment in self.root.replies:
+                if _comment.depth > self.depth and _comment._get_prop("parent_comm_id") == self.id:
+                    yield _comment
+
+    @property
+    def children(self):
+        """
+        :returns: generator iterating direct children of comments
+        :rtype: generator<Comment>
+        """
+        for x in self.replies:
+            if x.depth == self.depth + 1:
+                yield x
+
+    @property
+    def siblings(self):
+        """
+        :returns: generator iterating comment siblings
+        :rtype: generator<Comment>
+        """
+        if self.is_root:
+            return self.post.comments
+
+        return self.parent.children
 
     # public properties
 
@@ -1366,7 +1612,7 @@ class Comment(CommentMixin):
     @property
     def state(self):
         """
-        :retunrs: the state of the comment. Top comments are state top, and all others are state normal
+        :returns: the state of the comment. Top comments are state top, and all others are state normal
         :rtype: str (top, normal)
         """
         return self._get_prop("state")
@@ -1389,13 +1635,24 @@ class Comment(CommentMixin):
         return Post(self.cid, self.client)
 
     @property
-    def root(self):
+    def parent(self):
         """
-        :returns: this comments root parent, or None if comment is root
-        :rtype: Comment, or None
+        :returns: direct parent of this comment, or none for root comments
+        :rtype: Comment
         """
         if self.is_root:
             return None
+
+        return Comment(self._get_prop("parent_comm_id"), self.client, post = self.cid, root = self._get_prop("root_comm_id") if self.depth - 1 else None)
+
+    @property
+    def root(self):
+        """
+        :returns: this comments root parent, or self if comment is root
+        :rtype: Comment
+        """
+        if self.is_root:
+            return self
 
         return Comment(self._get_prop("root_comm_id"), self.client, post = self.cid)
 
@@ -1405,7 +1662,10 @@ class Comment(CommentMixin):
         :returns: number of smiles on this comment
         :rtype: int
         """
-        return self._get_prop("num")["smiles"]
+        if self._get_prop("num").get("smiles"):
+            return self._get_prop("num").get("smiles")
+        else:
+            return self.fresh._get_prop("num").get("smiles")
 
     @property
     def unsmile_count(self):
@@ -1413,7 +1673,10 @@ class Comment(CommentMixin):
         :returns: number of unsmiles on this comment
         :rtype: int
         """
-        return self._get_prop("num")["unsmiles"]
+        if self._get_prop("num").get("unsmiles"):
+            return self._get_prop("num").get("unsmiles")
+        else:
+            return self.fresh._get_prop("num").get("unsmiles")
 
     @property
     def reply_count(self):
@@ -1421,7 +1684,10 @@ class Comment(CommentMixin):
         :returns: number of replies on this comment
         :rtype: int
         """
-        return self._get_prop("num")["replies"]
+        if self._get_prop("num").get("replies"):
+            return self._get_prop("num").get("replies")
+        else:
+            return self.fresh._get_prop("num").get("replies")
 
     @property
     def created_at(self):
@@ -1456,8 +1722,7 @@ class Comment(CommentMixin):
         :returns: has this comment been deleted?
         :rtype: bool
         """
-        value = self._get_prop("is_deleted")
-        return value if value else False
+        return self._get_prop("is_deleted", default = False)
 
     @property
     def is_edited(self):
@@ -1627,11 +1892,11 @@ class Channel:
     @property
     def feed(self):
         """
-        Generator for a channels feed.
+        generator for a channels feed.
         Each iteration will return the next channel post, in decending order of date posted
 
         :returns: generator iterating the channel feed
-        :rtype: Generator<Post>
+        :rtype: generator<Post>
         """
         return paginated_generator(self._feed_paginated)
 
@@ -1723,7 +1988,7 @@ class Digest(ObjectMixin):
     @property
     def comments(self):
         """
-        :returs: subscriber comments that are in this digest
+        :returns: subscriber comments that are in this digest
         :rtype: generator<Comment>
         """
         self._comments = True
@@ -1736,7 +2001,7 @@ class Digest(ObjectMixin):
     @property
     def title(self):
         """
-        :returs: the title of this digest
+        :returns: the title of this digest
         :rtype: str
         """
         return self._get_prop("title")
@@ -1744,7 +2009,7 @@ class Digest(ObjectMixin):
     @property
     def smile_count(self):
         """
-        :returs: number of smiles in this digest
+        :returns: number of smiles in this digest
         :rtype: int
         """
         return self._get_prop("likes")
@@ -1752,7 +2017,7 @@ class Digest(ObjectMixin):
     @property
     def total_smiles(self):
         """
-        :returs: alias for ``Digest.smile_count```
+        :returns: alias for ``Digest.smile_count```
         :rtype: int
         """
         return self.smile_count
@@ -1760,7 +2025,7 @@ class Digest(ObjectMixin):
     @property
     def comment_count(self):
         """
-        :returs: number of comments in this digest
+        :returns: number of comments in this digest
         :rtype: int
         """
         return self._get_prop("comments")
@@ -1768,7 +2033,7 @@ class Digest(ObjectMixin):
     @property
     def post_count(self):
         """
-        :returs: number of posts in this digest
+        :returns: number of posts in this digest
         :rtype: int
         """
         return self._get_prop("item_count")
@@ -1776,7 +2041,7 @@ class Digest(ObjectMixin):
     @property
     def unread_count(self):
         """
-        :returs: number of unread posts in this digest
+        :returns: number of unread posts in this digest
         :rtype: int
         """
         return self._get_prop("unreads")
@@ -1784,7 +2049,7 @@ class Digest(ObjectMixin):
     @property
     def count(self):
         """
-        :returs: index of this digest
+        :returns: index of this digest
         :rtype: int
         """
         return self._get_prop("count")

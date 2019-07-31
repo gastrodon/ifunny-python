@@ -8,9 +8,9 @@ from importlib import import_module
 from pathlib import Path
 
 from ifunny.client._handler import Handler, Event
-from ifunny.ext.commands import Command, Defaults
 from ifunny.client._sendbird import Socket
-from ifunny.objects import User, Chat, Notification, Post, Channel, Digest
+from ifunny.ext.commands import Command, Defaults
+from ifunny.objects import User, Post, Comment, Notification, Channel, Digest, Chat
 from ifunny.util.methods import paginated_format, paginated_data, paginated_generator
 from ifunny.util.exceptions import ChatAlreadyActive, BadAPIResponse, ChatNotActive
 
@@ -206,6 +206,61 @@ class Client:
 
         return paginated_format(data, items)
 
+    def _search_tags_paginated(self, query, limit = 30, next = None, prev = None):
+        limit = self.paginated_size
+        data = paginated_data(
+            f"{self.api}/search/content", "content", self.headers,
+            limit = limit, prev = prev, next = next, ex_params = {"tag": query}
+        )
+
+        items = [Post(item["id"], self, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
+
+    def _search_users_paginated(self, query, limit = 50, next = None, prev = None):
+        limit = self.paginated_size
+        data = paginated_data(
+            f"{self.api}/search/users", "users", self.headers,
+            limit = limit, prev = prev, next = next, ex_params = {"q": query}
+        )
+
+        items = [User(item["id"], self, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
+
+    def _search_chats_paginated(self, query, limit = 20, next = None, prev = None):
+        limit = self.paginated_size
+        data = paginated_data(
+            f"{self.api}/search/chats/channels", "channels", self.headers,
+            limit = limit, prev = prev, next = next, ex_params = {"q": query}
+        )
+
+        items = [Chat(item["channel_url"], self, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
+
+    def _smiles_paginated(self, limit = 30, next = None, prev = None):
+        limit = self.paginated_size
+        data = paginated_data(
+            f"{self.api}/users/my/content_smiles", "content", self.headers,
+            limit = limit, prev = prev, next = next
+        )
+
+        items = [Post(item["id"], self, data = item) for item in data["items"]]
+
+        return paginated_format(data, items)
+
+    def _comments_paginated(self, limit = 30, next = None, prev = None):
+        limit = self.paginated_size
+        data = paginated_data(
+            f"{self.api}/users/my/content_smiles", "content", self.headers,
+            limit = limit, prev = prev, next = next
+        )
+
+        items = [Comment(item["id"], self, data = item, post = data["cid"], root = data.get("root_comm_id")) for item in data["items"]]
+
+        return paginated_format(data, items)
+
     # private properties
 
     @property
@@ -296,53 +351,83 @@ class Client:
         self.__update_config()
         return self
 
-    def post_image_url(self, image_url, tags = [], visibility = "public"):
+    def post_image_url(self, image_url, **kwargs):
         """
         Post an image from a url to iFunny
 
         :param image_url: location image to post
         :param tags: list of searchable tags
-        :param visibility: visibility of the post on iFunny
+        :param visibility: Visibility of the post on iFunny. Can be one of (``public``, ``subscribers``)
+        :param wait: wait for the post to be successfuly published?
+        :param timeout: time to wait for a successful post
+        :param schedule: timestamp to schedule the post for, or None for immediate
 
         :type image_data: bytes
         :type tags: list<str>
         :type visibility: str
+        :type wait: bool
+        :type timeout: int
+        :type schedule: int, or None
 
-        :returns: True if successfuly posted (POST response is 202) else False
-        :rtype: bool
+        :returns: Post if wait flag set (when posted)
+        :rtype: Post, or None
         """
-
         image_data = requests.get(image_url).content
 
-        return self.post_image(image_data, tags = tags, visibility = visibility)
+        return self.post_image(image_data, **kwargs)
 
-    def post_image(self, image_data, tags = [], visibility = "public"):
+    def post_image(self, image_data, tags = [], visibility = "public", wait = False, timeout = 15, schedule = None):
         """
         Post an image to iFunny
 
         :param image_data: Binary image to post
         :param tags: List of searchable tags
-        :param visibility: Visibility of the post on iFunny
+        :param visibility: Visibility of the post on iFunny. Can be one of (``public``, ``subscribers``)
+        :param wait: wait for the post to be successfuly published?
+        :param timeout: time to wait for a successful post
+        :param schedule: timestamp to schedule the post for, or None for immediate
 
         :type image_data: bytes
         :type tags: list<str>
         :type visibility: str
+        :type wait: bool
+        :type timeout: int
+        :type schedule: int, or None
 
-        :returns: True if successfuly posted (POST response is 202) else False
-        :rtype: bool
+        :returns: Post if wait flag set (when posted)
+        :rtype: Post, or None
         """
+        if visibility not in {"public", "subscribers"}:
+            raise ValueError(f"visibility cannot be {visibility}")
+
         data = {
             "type": "pic",
             "tags": json.dumps(tags),
             "visibility": visibility
         }
 
+        if schedule:
+            data["publish_at"] = int(schedule)
+
         files = {
             "image": image_data
         }
 
         response = requests.post(f"{self.api}/content", headers = self.headers, data = data, files = files)
-        return response.status_code == 202
+        id = response.json()["data"]["id"]
+        posted = None
+
+        if not wait:
+            return
+
+        while timeout * 2:
+            response = requests.get(f"{self.api}/tasks/{id}", headers = self.headers).json()["data"]
+
+            if response.get("result"):
+                return Post(response["result"]["cid"], self)
+
+            time.sleep(.5)
+            timeout -= 1
 
     def resolve_command(self, message):
         """
@@ -367,6 +452,64 @@ class Client:
 
         if response.status_code != 200:
             raise BadAPIResponse(f"{response.url}, {response.text}")
+
+    def search_users(self, query):
+        """
+        Search for users
+
+        :param query: query to search
+
+        :type query: str
+
+        :returns: generator iterating search results
+        :rtype: generator<User>
+        """
+        return paginated_generator(self._search_users_paginated, query)
+
+    def search_tags(self, query):
+        """
+        Search for tags
+
+        :param query: query to search
+
+        :type query: str
+
+        :returns: generator iterating search results
+        :rtype: generator<Post>
+        """
+        return paginated_generator(self._search_tags_paginated, query)
+
+    def search_chats(self, query):
+        """
+        Search for chats
+
+        :param query: query to search
+
+        :type query: str
+
+        :returns: generator iterating search results
+        :rtype: generator<Chat>
+        """
+        return paginated_generator(self._search_chats_paginated, query)
+
+    def suggested_tags(self, query):
+        """
+        Tags suggested by ifunny for a query
+
+        :param query: query for suggested tags
+
+        :type query: str
+
+        :returns: list of suggested tags and the number of memes with it
+        :rty: list<tuple<str, int>>
+        """
+        params = {
+            "q"     : str(query)
+        }
+
+        response = requests.get(f"{self.api}/tags/suggested", params = params, headers = self.headers)
+
+        return [(item["tag"], item["uses"]) for item in response.json()["data"]["tags"]["items"]]
 
     # sendbird methods
 
@@ -651,7 +794,7 @@ class Client:
     @property
     def trending_chats(self):
         """
-        :returs: a list of trending chats featured in explore
+        :returns: a list of trending chats featured in explore
         :rtype: list<Chat>
         """
         response = requests.get(f"{self.api}/chats/channels/trending", headers = self.headers)
@@ -679,22 +822,22 @@ class Client:
     @property
     def notifications(self):
         """
-        Generator for a client's notifications.
+        generator for a client's notifications.
         Each iteration will return the next notification, in decending order of date recieved
 
         :returns: generator iterating through notifications
-        :rtype: Generator<Notification>
+        :rtype: generator<Notification>
         """
         return paginated_generator(self._notifications_paginated)
 
     @property
     def reads(self):
         """
-        Generator for a client's reads.
+        generator for a client's reads.
         Each iteration will return the next viewed post, in decending order of date accessed
 
         :returns: generator iterating through read posts
-        :rtype: Generator<Post>
+        :rtype: generator<Post>
         """
         return paginated_generator(self._reads_paginaged)
 
@@ -709,44 +852,44 @@ class Client:
     @property
     def home(self):
         """
-        Generator for a client's subscriptions feed (home feed).
+        generator for a client's subscriptions feed (home feed).
         Each iteration will return the next home post, in decending order of date posted
 
         :returns: generator iterating the home feed
-        :rtype: Generator<Post>
+        :rtype: generator<Post>
         """
         return paginated_generator(self._home_paginated)
 
     @property
     def collective(self):
         """
-        Generator for the collective feed.
+        generator for the collective feed.
         Each iteration will return the next collective post, in decending order of date posted
 
         :returns: generator iterating the collective feed
-        :rtype: Generator<Post>
+        :rtype: generator<Post>
         """
         return paginated_generator(self._collective_paginated)
 
     @property
     def featured(self):
         """
-        Generator for the featured feed.
+        generator for the featured feed.
         Each iteration will return the next featured post, in decending order of date posted
 
         :returns: generator iterating the featured feed
-        :rtype: Generator<Post>
+        :rtype: generator<Post>
         """
         return paginated_generator(self._featured_paginated)
 
     @property
     def chats(self):
         """
-        Generator for a Client's chats.
+        generator for a Client's chats.
         Each iteration will return the next chat, in order of last message
 
         :returns: generator iterating through chats
-        :rtype: Generator<Chat>
+        :rtype: generator<Chat>
         """
         if not self.sendbird_session_key:
             raise ChatNotActive("Chat must be started at least once to get a session key")
@@ -760,3 +903,26 @@ class Client:
         :rtype: generator<Digest>
         """
         return paginated_generator(self._digests_paginated)
+
+    @property
+    def smiles(self):
+        """
+        :returns: generator iterating posts that this client has smiled
+        :rtype: generator<Post>
+        """
+        return paginated_generator(self._smiles_paginated)
+
+    @property
+    def comments(self):
+        """
+        :returns: generator iterating comments that this client has left
+        :rtype: generator<Comment>
+        """
+        return paginated_generator(self._comments_paginated)
+
+    @property
+    def timeline(self):
+        """
+        Alias for ``self.user.timeline``
+        """
+        return self.user.timeline
