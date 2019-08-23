@@ -13,7 +13,6 @@
 import os, sys, mock
 sys.path.insert(0, os.path.abspath('.'))
 
-
 # -- Project information -----------------------------------------------------
 
 project = 'iFunny'
@@ -21,8 +20,7 @@ copyright = '2019, Zero <dakoolstwunn@gmail.com>'
 author = 'Zero <dakoolstwunn@gmail.com>'
 
 # The full version, including alpha/beta/rc tags
-release = '0.7.0'
-
+release = '0.9.0'
 
 # -- General configuration ---------------------------------------------------
 
@@ -38,7 +36,6 @@ templates_path = ['_templates']
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'venv', 'ignore']
-
 
 # -- Options for HTML output -------------------------------------------------
 
