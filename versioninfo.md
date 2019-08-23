@@ -1,5 +1,9 @@
 # What's new
 
+### 0.9.0
+- split read-only methods out of `Client` to `ClientBase` for things that should not need logging in
+- moved around a bunch of imports and started import modules instead of the classes in them. Fixes some circular dependency problems that may arise 
+
 ### 0.8.0
 - A bunch of setters for properties in `Post` and `User`
 - `client.post_image[_url]` can now have scheduled posts

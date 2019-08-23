@@ -1,4 +1,4 @@
-import websocket, json, time, threading, requests
+import websocket, threading, requests
 
 class Socket:
     def __init__(self, client, trace, threaded):

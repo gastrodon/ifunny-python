@@ -1,7 +1,6 @@
-import json, requests
-from time import time
+import json, time
 
-from ifunny.objects import User, Message, ChatInvite, Chat
+from ifunny import objects
 
 class Handler:
     def __init__(self, client):
@@ -47,7 +46,7 @@ class Handler:
         if data["user"]["name"] == self.client.nick:
             return
 
-        message = Message(data["msg_id"], data["channel_url"], self.client, data = data)
+        message = objects.Message(data["msg_id"], data["channel_url"], self.client, data = data)
 
         message.invoked = self.client.resolve_command(message)
         self.get_ev("on_message")(message)
@@ -56,7 +55,7 @@ class Handler:
         if data["user"]["name"] == self.client.nick:
             return
 
-        message = Message(data["msg_id"], data["channel_url"], self.client, data = data)
+        message = objects.Message(data["msg_id"], data["channel_url"], self.client, data = data)
         self.get_ev("on_message")(message)
 
 
@@ -68,7 +67,7 @@ class Handler:
     def _on_ping(self, key, data):
         self.get_ev("on_ping")(data)
 
-        timestamp = int(time() * 1000)
+        timestamp = int(time.time() * 1000)
 
         data = json.dumps({
             "id"    : data["id"],
@@ -79,25 +78,25 @@ class Handler:
         return client.socket.send(f"PONG{data}\n")
 
     def _on_channel_update(self, key, data):
-        chat = Chat(data["channel_url"], self.client)
+        chat = objects.Chat(data["channel_url"], self.client)
         self.channel_update_codes.get(data["cat"], self._default_event)(data)
         self.get_ev("on_channel_update")(chat)
 
     def _on_invite(self, update):
-        invite = ChatInvite(update, self.client)
+        invite = objects.ChatInvite(update, self.client)
         if self.client.user in invite.invitees:
             return self.get_ev("on_invite")(invite)
 
         return self.get_ev("on_invite_broadcast")(invite)
 
     def _on_user_exit(self, data):
-        chat = Chat(data["channel_url"], self.client)
-        user = User(data["data"]["user_id"], self.client)
+        chat = objects.Chat(data["channel_url"], self.client)
+        user = objects.User(data["data"]["user_id"], client = self.client)
         self.get_ev("on_user_exit")(user, chat)
 
     def _on_user_join(self, data):
-        chat = Chat(data["channel_url"], self.client)
-        user = User(data["data"]["user_id"], self.client)
+        chat = objects.Chat(data["channel_url"], self.client)
+        user = objects.User(data["data"]["user_id"], client = self.client)
         self.get_ev("on_user_join")(user, chat)
 
     # public decorators
@@ -121,12 +120,12 @@ class Event:
 
 """
 events allowed:
-    on_message                  -> (Message):           a chat message is recieved
-    on_channel_update           -> (Chat):           something is done to update a chat that the client can see
-    on_invite (10020)           -> (ChatInvite):     the client is sent an invite
-    on_invite_broadcast (10020) -> (ChatInvite):     an invite is broadcast to people that are not the client
-    on_user_join (10000)        -> (User, Chat):     a user joins the chat
-    on_user_exit (10001)        -> (User, Chat):     a user leaves or is kicked from the chat
+    on_message                  -> (objects.Message):           a chat message is recieved
+    on_channel_update           -> (objects.Chat):           something is done to update a chat that the client can see
+    on_invite (10020)           -> (objects.ChatInvite):     the client is sent an invite
+    on_invite_broadcast (10020) -> (objects.ChatInvite):     an invite is broadcast to people that are not the client
+    on_user_join (10000)        -> (objects.User, objects.Chat):     a user joins the chat
+    on_user_exit (10001)        -> (objects.User, objects.Chat):     a user leaves or is kicked from the chat
     on_ping                     -> (json data):         we are pinged
     on_connect                  -> (json data):         ifunny achnowledges our websocket connection
     on_default                  -> (any):               websocket messages matches no events that the client has implemented

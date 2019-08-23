@@ -10,6 +10,10 @@ class AlreadyAuthenticated(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+class NotAuthenticated(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
 class TooManyMentions(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
