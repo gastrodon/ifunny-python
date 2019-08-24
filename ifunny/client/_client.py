@@ -4,13 +4,13 @@ import requests
 from random import random
 from hashlib import sha1
 from base64 import b64encode
-from importlib import import_module
 from pathlib import Path
 
 from ifunny import objects, util
 from ifunny.ext import commands
 from ifunny.client import _handler as handler
 from ifunny.client import _sendbird as sendbird
+
 
 class Client(objects._mixin.ClientBase):
     """
@@ -26,12 +26,14 @@ class Client(objects._mixin.ClientBase):
     :type prefix: str or callable
     :type paginated_size: int
     """
-    commands = {
-        "help" : commands.Defaults.help
-    }
+    commands = {"help": commands.Defaults.help}
 
-    def __init__(self, trace = False, threaded = True, prefix = {""}, paginated_size = 25):
-        super().__init__(paginated_size = paginated_size)
+    def __init__(self,
+                 trace=False,
+                 threaded=True,
+                 prefix={""},
+                 paginated_size=25):
+        super().__init__(paginated_size=paginated_size)
         # command
         self.__prefix = None
         self.prefix = prefix
@@ -61,7 +63,7 @@ class Client(objects._mixin.ClientBase):
 
     # private methods
 
-    def _get_prop(self, key, default = None):
+    def _get_prop(self, key, default=None):
         if not self._account_data.get(key, None):
             self._update = True
 
@@ -79,13 +81,15 @@ class Client(objects._mixin.ClientBase):
         """
         if self._update or self._account_data_payload is None:
             self._update = False
-            self._account_data_payload = requests.get(f"{self.api}/account", headers = self.headers).json()["data"] if self.authenticated else {}
+            self._account_data_payload = requests.get(
+                f"{self.api}/account", headers=self.headers).json(
+                )["data"] if self.authenticated else {}
 
         return self._account_data_payload
 
     # public methods
 
-    def login(self, email, password, force = False):
+    def login(self, email, password, force=False):
         """
         Authenticate with iFunny to get an API token.
         Will try to load saved account tokens (saved as plaintext json, indexed by `email_token`) if `force` is False
@@ -103,19 +107,19 @@ class Client(objects._mixin.ClientBase):
         """
 
         if self.authenticated:
-            raise AlreadyAuthenticated(f"This client instance already authenticated as {self.nick}")
+            raise AlreadyAuthenticated(
+                f"This client instance already authenticated as {self.nick}")
 
         if not force and self._config.get(f"{email}_token"):
             self.__token = self._config[f"{email}_token"]
-            response = requests.get(f"{self.api}/account", headers = self.headers)
+            response = requests.get(f"{self.api}/account",
+                                    headers=self.headers)
 
             if response.status_code == 200:
                 self.authenticated = True
                 return self
 
-        headers = {
-            "Authorization": f"Basic {self.basic_token}"
-        }
+        headers = {"Authorization": f"Basic {self.basic_token}"}
 
         data = {
             "grant_type": "password",
@@ -123,14 +127,19 @@ class Client(objects._mixin.ClientBase):
             "password": password
         }
 
-        response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
+        response = requests.post(f"{self.api}/oauth2/token",
+                                 headers=headers,
+                                 data=data)
 
         if response.status_code == 403:
             time.sleep(10)
-            response = requests.post(f"{self.api}/oauth2/token", headers = headers, data = data)
+            response = requests.post(f"{self.api}/oauth2/token",
+                                     headers=headers,
+                                     data=data)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"{response.url}, {response.text}")
 
         self.__token = response.json()["access_token"]
         self.authenticated = True
@@ -164,7 +173,13 @@ class Client(objects._mixin.ClientBase):
 
         return self.post_image(image_data, **kwargs)
 
-    def post_image(self, image_data, tags = [], visibility = "public", wait = False, timeout = 15, schedule = None):
+    def post_image(self,
+                   image_data,
+                   tags=[],
+                   visibility="public",
+                   wait=False,
+                   timeout=15,
+                   schedule=None):
         """
         Post an image to iFunny
 
@@ -197,11 +212,12 @@ class Client(objects._mixin.ClientBase):
         if schedule:
             data["publish_at"] = int(schedule)
 
-        files = {
-            "image": image_data
-        }
+        files = {"image": image_data}
 
-        response = requests.post(f"{self.api}/content", headers = self.headers, data = data, files = files)
+        response = requests.post(f"{self.api}/content",
+                                 headers=self.headers,
+                                 data=data,
+                                 files=files)
         id = response.json()["data"]["id"]
         posted = None
 
@@ -209,7 +225,8 @@ class Client(objects._mixin.ClientBase):
             return
 
         while timeout * 2:
-            response = requests.get(f"{self.api}/tasks/{id}", headers = self.headers).json()["data"]
+            response = requests.get(f"{self.api}/tasks/{id}",
+                                    headers=self.headers).json()["data"]
 
             if response.get("result"):
                 return objects.Post(response["result"]["cid"], self)
@@ -230,7 +247,9 @@ class Client(objects._mixin.ClientBase):
 
         for prefix in self.prefix:
             if first.startswith(prefix):
-                return self.commands.get(first[len(prefix):], commands.Defaults.default)(message, args)
+                return self.commands.get(first[len(prefix):],
+                                         commands.Defaults.default)(message,
+                                                                    args)
 
     def mark_features_read(self):
         """
@@ -239,7 +258,8 @@ class Client(objects._mixin.ClientBase):
         response = requests.put(f"{self.api}/reads/all")
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"{response.url}, {response.text}")
 
     def suggested_tags(self, query):
         """
@@ -252,13 +272,14 @@ class Client(objects._mixin.ClientBase):
         :returns: list of suggested tags and the number of memes with it
         :rty: list<tuple<str, int>>
         """
-        params = {
-            "q"     : str(query)
-        }
+        params = {"q": str(query)}
 
-        response = requests.get(f"{self.api}/tags/suggested", params = params, headers = self.headers)
+        response = requests.get(f"{self.api}/tags/suggested",
+                                params=params,
+                                headers=self.headers)
 
-        return [(item["tag"], item["uses"]) for item in response.json()["data"]["tags"]["items"]]
+        return [(item["tag"], item["uses"])
+                for item in response.json()["data"]["tags"]["items"]]
 
     # sendbird methods
 
@@ -301,26 +322,28 @@ class Client(objects._mixin.ClientBase):
         :returns: url to the uploaded content
         :rtype: str
         """
-        files = {
-            "file": file_data
-        }
+        files = {"file": file_data}
 
         data = {
-            "thumbnail1"    : "780, 780",
-            "thumbnail2"    : "320,320",
-            "channel_url"   : chat.channel_url
+            "thumbnail1": "780, 780",
+            "thumbnail2": "320,320",
+            "channel_url": chat.channel_url
         }
 
-        response = requests.post(f"{self.sendbird_api}/storage/file", headers = self.sendbird_headers, files = files, data = data)
+        response = requests.post(f"{self.sendbird_api}/storage/file",
+                                 headers=self.sendbird_headers,
+                                 files=files,
+                                 data=data)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"{response.url}, {response.text}")
 
         return response.json()["url"]
 
     # public decorators
 
-    def command(self, name = None):
+    def command(self, name=None):
         """
         Decorator to add a command, callable in chat with the format ``{prefix}{command}``
         Commands must take two arguments, which are set as the Message and list<str> of space-separated words in the message (excluding the command) respectively::
@@ -343,7 +366,7 @@ class Client(objects._mixin.ClientBase):
 
         return _inner
 
-    def event(self, name = None):
+    def event(self, name=None):
         """
         Decorator to add an event, which is called when different things happen by the clients socket.
         Events must take one argument, which is a dict with the websocket data::
@@ -376,9 +399,7 @@ class Client(objects._mixin.ClientBase):
         :returns: sendbird-ready headers
         :rtype: dict
         """
-        _headers = {
-            "User-Agent": "jand/3.096"
-        }
+        _headers = {"User-Agent": "jand/3.096"}
 
         if self.sendbird_session_key:
             _headers["Session-Key"] = self.sendbird_session_key
@@ -394,10 +415,11 @@ class Client(objects._mixin.ClientBase):
         :rtype: dict
         """
         _headers = {
-            "User-Agent"    : self._user_agent,
+            "User-Agent": self._user_agent,
         }
 
-        _headers["Authorization"] = f"Bearer {self.__token}" if self.__token else f"Basic {self.basic_token}"
+        _headers[
+            "Authorization"] = f"Bearer {self.__token}" if self.__token else f"Basic {self.basic_token}"
 
         return _headers
 
@@ -418,7 +440,9 @@ class Client(objects._mixin.ClientBase):
         if isinstance(_pref, (set, tuple, list, str)):
             return set(self.__prefix)
 
-        raise TypeError(f"prefix must be str, iterable, or callable resulting in either. Not {type(_pref)}")
+        raise TypeError(
+            f"prefix must be str, iterable, or callable resulting in either. Not {type(_pref)}"
+        )
 
     @prefix.setter
     def prefix(self, value):
@@ -438,7 +462,9 @@ class Client(objects._mixin.ClientBase):
             self.__prefix = value
             return set(_pref)
 
-        raise TypeError(f"prefix must be str, iterable, or callable resulting in either. Not {type(_pref)}")
+        raise TypeError(
+            f"prefix must be str, iterable, or callable resulting in either. Not {type(_pref)}"
+        )
 
     @property
     def messenger_token(self):
@@ -489,8 +515,10 @@ class Client(objects._mixin.ClientBase):
         :returns: this client's user object
         :rtype: User
         """
-        if not self.__user :
-            self.__user = objects.User(self.id, client = self, paginated_size = self.paginated_size)
+        if not self.__user:
+            self.__user = objects.User(self.id,
+                                       client=self,
+                                       paginated_size=self.paginated_size)
 
         return self.__user
 
@@ -500,7 +528,8 @@ class Client(objects._mixin.ClientBase):
         :returns: number of unread notifications
         :rtype: int
         """
-        return requests.get(f"{self.api}/counters", headers = self.headers).json()["data"]["news"]
+        return requests.get(f"{self.api}/counters",
+                            headers=self.headers).json()["data"]["news"]
 
     @property
     def nick(self):

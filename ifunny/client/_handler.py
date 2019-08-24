@@ -2,6 +2,7 @@ import json, time
 
 from ifunny import objects
 
+
 class Handler:
     def __init__(self, client):
         self.client = client
@@ -27,6 +28,7 @@ class Handler:
 
     def get_ev(self, key):
         return self.events.get(key, self._default_event)
+
     # websocket hook defaults
 
     def _default_match(self, key, data):
@@ -46,7 +48,10 @@ class Handler:
         if data["user"]["name"] == self.client.nick:
             return
 
-        message = objects.Message(data["msg_id"], data["channel_url"], self.client, data = data)
+        message = objects.Message(data["msg_id"],
+                                  data["channel_url"],
+                                  self.client,
+                                  data=data)
 
         message.invoked = self.client.resolve_command(message)
         self.get_ev("on_message")(message)
@@ -55,14 +60,17 @@ class Handler:
         if data["user"]["name"] == self.client.nick:
             return
 
-        message = objects.Message(data["msg_id"], data["channel_url"], self.client, data = data)
+        message = objects.Message(data["msg_id"],
+                                  data["channel_url"],
+                                  self.client,
+                                  data=data)
         self.get_ev("on_message")(message)
-
 
     def _on_connect(self, key, data):
         self.client.sendbird_session_key = data["key"]
         self.client.socket.connected = True
-        self.get_ev("on_connect")(data) # TODO: consider using an object for the data
+        self.get_ev("on_connect")(
+            data)  # TODO: consider using an object for the data
 
     def _on_ping(self, key, data):
         self.get_ev("on_ping")(data)
@@ -70,9 +78,9 @@ class Handler:
         timestamp = int(time.time() * 1000)
 
         data = json.dumps({
-            "id"    : data["id"],
-            "ts"    : timestamp,
-            "sts"   : timestamp
+            "id": data["id"],
+            "ts": timestamp,
+            "sts": timestamp
         })
 
         return client.socket.send(f"PONG{data}\n")
@@ -91,22 +99,23 @@ class Handler:
 
     def _on_user_exit(self, data):
         chat = objects.Chat(data["channel_url"], self.client)
-        user = objects.User(data["data"]["user_id"], client = self.client)
+        user = objects.User(data["data"]["user_id"], client=self.client)
         self.get_ev("on_user_exit")(user, chat)
 
     def _on_user_join(self, data):
         chat = objects.Chat(data["channel_url"], self.client)
-        user = objects.User(data["data"]["user_id"], client = self.client)
+        user = objects.User(data["data"]["user_id"], client=self.client)
         self.get_ev("on_user_join")(user, chat)
 
     # public decorators
 
-    def add(self, name = None):
+    def add(self, name=None):
         def _inner(method):
             _name = name if name else method.__name__
             self.events[_name] = method
 
         return _inner
+
 
 class Event:
     def __init__(self, method, name):
@@ -117,6 +126,7 @@ class Event:
     def __call__(self, *data):
         self.method(*data)
         return self
+
 
 """
 events allowed:

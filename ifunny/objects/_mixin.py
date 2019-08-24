@@ -1,5 +1,8 @@
 import json, requests, threading, os
 
+from random import random
+from hashlib import sha1
+from base64 import b64encode
 from pathlib import Path
 
 from ifunny import objects

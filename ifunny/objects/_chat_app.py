@@ -3,6 +3,7 @@ import json, time, requests, threading
 from ifunny import util, objects
 from ifunny.objects import _mixin as mixin
 
+
 class Chat(mixin.SendbirdMixin):
     """
     iFunny Chat object
@@ -25,48 +26,54 @@ class Chat(mixin.SendbirdMixin):
     def __repr__(self):
         return self.title
 
-    def _members_paginated(self, limit = None, next = None):
+    def _members_paginated(self, limit=None, next=None):
         limit = limit if limit else self.client.paginated_size
 
-        data = util.methods.paginated_data_sb(
-            f"{self._url}/members", "members", self.client.sendbird_headers,
-            limit = limit, next = next
-        )
+        data = util.methods.paginated_data_sb(f"{self._url}/members",
+                                              "members",
+                                              self.client.sendbird_headers,
+                                              limit=limit,
+                                              next=next)
 
-        data["items"] = [ChatUser(member["user_id"], self, cleint = self.client, sb_data = member) for member in data["items"]]
+        data["items"] = [
+            ChatUser(member["user_id"],
+                     self,
+                     cleint=self.client,
+                     sb_data=member) for member in data["items"]
+        ]
 
         return data
 
-    def _messages_paginated(self, limit = None, next = None):
+    def _messages_paginated(self, limit=None, next=None):
         limit = limit if limit else self.client.paginated_size
         next = next if next else int(time.time() * 1000)
 
         params = {
             "prev_limit": limit,
             "message_ts": next,
-            "include"   : False,
-            "is_sdk"    : True,
-            "reverse"   : True
+            "include": False,
+            "is_sdk": True,
+            "reverse": True
         }
 
-        response = requests.get(f"{self._url}/messages", params = params, headers = self.client.sendbird_headers)
+        response = requests.get(f"{self._url}/messages",
+                                params=params,
+                                headers=self.client.sendbird_headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"requesting {response.url} failed\n{response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"requesting {response.url} failed\n{response.text}")
 
         data = response.json()["messages"]
         next_ts = data[::-1][0]["created_at"]
-        items = [Message(message["message_id"], message["channel_url"], self.client) for message in data]
+        items = [
+            Message(message["message_id"], message["channel_url"], self.client)
+            for message in data
+        ]
 
-        return {
-            "items": items,
-            "paging": {
-                "prev": None,
-                "next": next_ts
-            }
-        }
+        return {"items": items, "paging": {"prev": None, "next": next_ts}}
 
-    def _wait_to_set_frozen(self, wait, state, callback = None):
+    def _wait_to_set_frozen(self, wait, state, callback=None):
         time.sleep(wait)
 
         if self.fresh.frozen:
@@ -88,17 +95,20 @@ class Chat(mixin.SendbirdMixin):
         :returns: fresh list of this chat's operators
         :rtype: List<ChatUser>
         """
-        data = {
-            "operators" : user.id
-        }
+        data = {"operators": user.id}
 
-        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}/operators", data = data, headers = self.client.headers)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.channel_url}/operators",
+            data=data,
+            headers=self.client.headers)
 
         if response.status_code == 403:
-            raise util.exceptions.Forbidden("You cannot modify the operators of this chat")
+            raise util.exceptions.Forbidden(
+                "You cannot modify the operators of this chat")
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"{response.url}, {response.text}")
 
         return self.fresh.operators
 
@@ -113,17 +123,20 @@ class Chat(mixin.SendbirdMixin):
         :returns: fresh list of this chat's operators
         :rtype: List<ChatUser>
         """
-        data = {
-            "operators" : user.id
-        }
+        data = {"operators": user.id}
 
-        response = requests.delete(f"{self.client.api}/chats/channels/{self.channel_url}/operators", data = data, headers = self.client.headers)
+        response = requests.delete(
+            f"{self.client.api}/chats/channels/{self.channel_url}/operators",
+            data=data,
+            headers=self.client.headers)
 
         if response.status_code == 403:
-            raise util.exceptions.Forbidden("You cannot modify the operators of this chat")
+            raise util.exceptions.Forbidden(
+                "You cannot modify the operators of this chat")
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"{response.url}, {response.text}")
 
         return self.fresh.operators
 
@@ -134,7 +147,9 @@ class Chat(mixin.SendbirdMixin):
         :returns: did this client join successfuly?
         :rtype: bool
         """
-        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}/members", headers = self.client.headers)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.channel_url}/members",
+            headers=self.client.headers)
 
         return True if response.status_code == 200 else False
 
@@ -145,7 +160,9 @@ class Chat(mixin.SendbirdMixin):
         :returns: did this client leave successfuly?
         :rtype: bool
         """
-        response = requests.delete(f"{self.client.api}/chats/channels/{self.channel_url}/members", headers = self.client.headers)
+        response = requests.delete(
+            f"{self.client.api}/chats/channels/{self.channel_url}/members",
+            headers=self.client.headers)
 
         return True if response.status_code == 200 else False
 
@@ -157,14 +174,16 @@ class Chat(mixin.SendbirdMixin):
         :rtype: Chat
         """
         if not self.client.socket.active:
-            raise util.exceptions.ChatNotActive("The chat socket has not been started")
+            raise util.exceptions.ChatNotActive(
+                "The chat socket has not been started")
 
         message_data = {
-            "channel_url"   : self.channel_url,
-            "req_id"        : self.client.next_req_id
+            "channel_url": self.channel_url,
+            "req_id": self.client.next_req_id
         }
 
-        self.client.socket.send(f"READ{json.dumps(message_data, separators = (',', ':'))}\n")
+        self.client.socket.send(
+            f"READ{json.dumps(message_data, separators = (',', ':'))}\n")
         return self
 
     def invite(self, user):
@@ -180,16 +199,21 @@ class Chat(mixin.SendbirdMixin):
         """
 
         data = json.dumps({
-            "user_ids"  : [user.id] if isinstance(user, objects.User) else [u.id for u in users]
+            "user_ids": [user.id]
+            if isinstance(user, objects.User) else [u.id for u in users]
         })
 
-        response = requests.post(f"{self._url}/invite", data = data, headers = self.client.sendbird_headers)
+        response = requests.post(f"{self._url}/invite",
+                                 data=data,
+                                 headers=self.client.sendbird_headers)
 
         if response.status_code == 403:
-            raise util.exceptions.Forbidden("You cannot invite users to this chat")
+            raise util.exceptions.Forbidden(
+                "You cannot invite users to this chat")
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"{response.url}, {response.text}")
 
         return self
 
@@ -203,21 +227,24 @@ class Chat(mixin.SendbirdMixin):
         :return: self
         :rtype: Chat
         """
-        data = {
-            "members": user.id
-        }
+        data = {"members": user.id}
 
-        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}/kicked_members", data = data, headers = self.client.headers)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.channel_url}/kicked_members",
+            data=data,
+            headers=self.client.headers)
 
         if response.status_code == 403:
-            raise util.exceptions.Forbidden("You must be an operator or admin to kick members")
+            raise util.exceptions.Forbidden(
+                "You must be an operator or admin to kick members")
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"{response.url}, {response.text}")
 
         return self
 
-    def freeze(self, until = 0, callback = None):
+    def freeze(self, until=0, callback=None):
         """
         Freeze a Chat, and set the update flag.
 
@@ -234,11 +261,15 @@ class Chat(mixin.SendbirdMixin):
         self.frozen = True
 
         if until and isinstance(until, int):
-            threading.Thread(target = self._wait_to_set_frozen, args = [until, False], kwargs = {"callback": callback}).start()
+            threading.Thread(target=self._wait_to_set_frozen,
+                             args=[until, False],
+                             kwargs={
+                                 "callback": callback
+                             }).start()
 
         return self.fresh
 
-    def unfreeze(self, until = 0, callback = None):
+    def unfreeze(self, until=0, callback=None):
         """
         Freeze a Chat, and set the update flag.
 
@@ -255,11 +286,15 @@ class Chat(mixin.SendbirdMixin):
         self.frozen = False
 
         if until and isinstance(until, int):
-            threading.Thread(target = self._wait_to_set_frozen, args = [until, True], kwargs = {"callback": callback}).start()
+            threading.Thread(target=self._wait_to_set_frozen,
+                             args=[until, True],
+                             kwargs={
+                                 "callback": callback
+                             }).start()
 
         return self.fresh
 
-    def send_message(self, message, read = False):
+    def send_message(self, message, read=False):
         """
         Send a text message to a chat.
 
@@ -275,22 +310,24 @@ class Chat(mixin.SendbirdMixin):
         :rtype: Chat
         """
         if not self.client.socket.active:
-            raise util.exceptions.ChatNotActive("The chat socket has not been started")
+            raise util.exceptions.ChatNotActive(
+                "The chat socket has not been started")
 
         message_data = {
-            "channel_url"   : self.channel_url,
-            "message"       : message,
+            "channel_url": self.channel_url,
+            "message": message,
             #"req_id"        : self.client.next_req_id
         }
 
-        self.client.socket.send(f"MESG{json.dumps(message_data, separators = (',', ':'))}\n")
+        self.client.socket.send(
+            f"MESG{json.dumps(message_data, separators = (',', ':'))}\n")
 
         if read:
             self.read()
 
         return self
 
-    def send_image_url(self, image_url, width = 780, height = 780, read = False):
+    def send_image_url(self, image_url, width=780, height=780, read=False):
         """
         Send an image to a chat from a url source.
 
@@ -310,30 +347,39 @@ class Chat(mixin.SendbirdMixin):
         :rtype: Chat
         """
         if not self.client.socket.active:
-            raise util.exceptions.ChatNotActive("The chat socket has not been started")
+            raise util.exceptions.ChatNotActive(
+                "The chat socket has not been started")
 
         lower_ratio = min([width / height, height / width])
         type = "tall" if height >= width else "wide"
         mime = util.methods.determine_mime(image_url)
 
         response_data = {
-            "channel_url"   : self.channel_url,
-            "url"           : image_url,
-            "name"          : f"botimage",
-            "type"          : mime,
-            "thumbnails"    : [
-                {
-                    "url"           : image_url,
-                    "real_height"   : int(780 if type == "tall" else 780 * lower_ratio),
-                    "real_width"    : int(780 if type == "wide" else 780 * lower_ratio),
-                    "height"        : width,
-                    "width"         : height,
-                }
-            ]
+            "channel_url":
+            self.channel_url,
+            "url":
+            image_url,
+            "name":
+            f"botimage",
+            "type":
+            mime,
+            "thumbnails": [{
+                "url":
+                image_url,
+                "real_height":
+                int(780 if type == "tall" else 780 * lower_ratio),
+                "real_width":
+                int(780 if type == "wide" else 780 * lower_ratio),
+                "height":
+                width,
+                "width":
+                height,
+            }]
             #"req_id": self.client.next_req_id
         }
 
-        self.client.socket.send(f"FILE{json.dumps(response_data, separators = (',', ':'))}\n")
+        self.client.socket.send(
+            f"FILE{json.dumps(response_data, separators = (',', ':'))}\n")
 
         if read:
             self.read()
@@ -385,7 +431,7 @@ class Chat(mixin.SendbirdMixin):
         if not data:
             return None
 
-        return [ChatUser(id, self, client = self.client) for id in data]
+        return [ChatUser(id, self, client=self.client) for id in data]
 
     @property
     def operators(self):
@@ -398,7 +444,7 @@ class Chat(mixin.SendbirdMixin):
         if not data:
             return None
 
-        return [ChatUser(id, self, client = self.client) for id in data]
+        return [ChatUser(id, self, client=self.client) for id in data]
 
     @property
     def title(self):
@@ -411,12 +457,12 @@ class Chat(mixin.SendbirdMixin):
 
     @title.setter
     def title(self, value):
-        data = {
-            "title": str(value),
-            "description": self.description
-        }
+        data = {"title": str(value), "description": self.description}
 
-        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}", data = data, headers = self.client.headers)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.channel_url}",
+            data=data,
+            headers=self.client.headers)
         self._update = True
 
     @property
@@ -445,12 +491,12 @@ class Chat(mixin.SendbirdMixin):
 
     @description.setter
     def description(self, value):
-        data = {
-            "title": self.title,
-            "description": str(value)
-        }
+        data = {"title": self.title, "description": str(value)}
 
-        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}", data = data, headers = self.client.headers)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.channel_url}",
+            data=data,
+            headers=self.client.headers)
         self._update = True
 
     @property
@@ -471,7 +517,10 @@ class Chat(mixin.SendbirdMixin):
 
         data = f"is_frozen={str(val).lower()}"
 
-        response = requests.put(f"{self.client.api}/chats/channels/{self.channel_url}", headers = self.client.headers, data = data)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.channel_url}",
+            headers=self.client.headers,
+            data=data)
 
     @property
     def type(self):
@@ -523,6 +572,7 @@ class Chat(mixin.SendbirdMixin):
         """
         return self._get_prop("is_muted")
 
+
 class ChatUser(objects.User):
     """
     A User attatched to a chat.
@@ -534,13 +584,19 @@ class ChatUser(objects.User):
     :type chat: Chat
     :type sb_data: dict
     """
-    def __init__(self, id, chat, *args, client = mixin.ClientBase(), sb_data = None, **kwargs):
+    def __init__(self,
+                 id,
+                 chat,
+                 *args,
+                 client=mixin.ClientBase(),
+                 sb_data=None,
+                 **kwargs):
         super().__init__(id, client, *args, **kwargs)
         self._sb_url = chat._url
         self._sb_data_payload = sb_data
         self.__chat = chat
 
-    def _sb_prop(self, key, default = None, force = False):
+    def _sb_prop(self, key, default=None, force=False):
         if not self._sb_data.get(key, None) or force:
             self._update = True
 
@@ -555,17 +611,20 @@ class ChatUser(objects.User):
         :return: self
         :rtype: ChatUser
         """
-        data = {
-            "members": self.id
-        }
+        data = {"members": self.id}
 
-        response = requests.put(f"{self.client.api}/chats/channels/{self.chat.channel_url}/kicked_members", data = data, headers = self.client.headers)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.chat.channel_url}/kicked_members",
+            data=data,
+            headers=self.client.headers)
 
         if response.status_code == 403:
-            raise util.exceptions.Forbidden("You must be an operator or admin to kick members")
+            raise util.exceptions.Forbidden(
+                "You must be an operator or admin to kick members")
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"{response.url}, {response.text}")
 
         return self
 
@@ -574,7 +633,10 @@ class ChatUser(objects.User):
         if self._update or self._sb_data_payload is None:
             self._update = False
 
-            members = [member for member in self.chat._account_data.get("members") if member["user_id"] == self.id]
+            members = [
+                member for member in self.chat._account_data.get("members")
+                if member["user_id"] == self.id
+            ]
 
             if not len(members):
                 members = [{}]
@@ -611,6 +673,7 @@ class ChatUser(objects.User):
     def chat(self):
         return self.__chat
 
+
 class Message(mixin.SendbirdMixin):
     """
     Sendbird message object.
@@ -622,8 +685,8 @@ class Message(mixin.SendbirdMixin):
     :type data: dict
     :type client: Client
     """
-    def __init__(self, id, channel_url, client, data = None):
-        super().__init__(id, client, data = data)
+    def __init__(self, id, channel_url, client, data=None):
+        super().__init__(id, client, data=data)
         self.invoked = None
 
         self.__channel_url = None
@@ -642,7 +705,8 @@ class Message(mixin.SendbirdMixin):
         :rtype: Message
         """
         if self.author != self.client.user:
-            raise util.exceptions.NotOwnContent("You cannot delete a message that does not belong to you")
+            raise util.exceptions.NotOwnContent(
+                "You cannot delete a message that does not belong to you")
 
         requests.delete(self._url)
 
@@ -655,7 +719,9 @@ class Message(mixin.SendbirdMixin):
         :rtype: ChatUser
         """
         if not self.__author:
-            self.__author = ChatUser(self._get_prop("user").get("guest_id"), self.chat, client = self.client)
+            self.__author = ChatUser(self._get_prop("user").get("guest_id"),
+                                     self.chat,
+                                     client=self.client)
 
         return self.__author
 
@@ -733,7 +799,8 @@ class Message(mixin.SendbirdMixin):
         if self.type == "MESG":
             return None
 
-        return requests.get(self.file_url, headers = self.client.sendbird_headers).content
+        return requests.get(self.file_url,
+                            headers=self.client.sendbird_headers).content
 
     @property
     def file_type(self):
@@ -757,6 +824,7 @@ class Message(mixin.SendbirdMixin):
 
         return self._get_prop("file").get("name")
 
+
 class ChatInvite:
     """
     Chat update class.
@@ -769,11 +837,7 @@ class ChatInvite:
     :type client: Client
     """
 
-    _status_codes = {
-        10000: "accepted",
-        10020: "invite",
-        10022: "rejected"
-    }
+    _status_codes = {10000: "accepted", 10020: "invite", 10022: "rejected"}
 
     def __init__(self, data, client):
         self.client = client
@@ -797,14 +861,15 @@ class ChatInvite:
         if not self.inviter or self.client.user not in self.invitees:
             return None
 
-        data = json.dumps({
-            "user_id": self.client.id
-        })
+        data = json.dumps({"user_id": self.client.id})
 
-        response = requests.put(f"{self.url}/accept", headers = self.client.sendbird_headers, data = data)
+        response = requests.put(f"{self.url}/accept",
+                                headers=self.client.sendbird_headers,
+                                data=data)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+            raise util.exceptions.BadAPIResponse(
+                f"{response.url}, {response.text}")
 
         data = response.json()
         return self.chat
@@ -817,11 +882,11 @@ class ChatInvite:
         if not self.inviter or self.client.user not in self.invitees:
             return None
 
-        data = json.dumps({
-            "user_id": self.client.id
-        })
+        data = json.dumps({"user_id": self.client.id})
 
-        response = requests.put(f"{self.url}/decline", headers = self.client.sendbird_headers, data = data)
+        response = requests.put(f"{self.url}/decline",
+                                headers=self.client.sendbird_headers,
+                                data=data)
 
     @property
     def url(self):
@@ -869,7 +934,9 @@ class ChatInvite:
                 self.__inviter = None
                 return self.__inviter
 
-            self.__inviter = ChatUser(inviter["user_id"], self.chat, client = self.client)
+            self.__inviter = ChatUser(inviter["user_id"],
+                                      self.chat,
+                                      client=self.client)
 
         return self.__inviter
 
@@ -881,7 +948,10 @@ class ChatInvite:
         """
         if not self.__invitees:
             invitees = self.__data["data"]["invitees"]
-            self.__invitees = [ChatUser(user["user_id"], self.chat, client = self.client) for user in invitees]
+            self.__invitees = [
+                ChatUser(user["user_id"], self.chat, client=self.client)
+                for user in invitees
+            ]
 
         return self.__invitees
 
@@ -891,4 +961,5 @@ class ChatInvite:
         :returns: the type of the incoming chat data
         :rtype: str
         """
-        return self._status_codes.get(self.__data["cat"], f"unknown: {self.__data['cat']}")
+        return self._status_codes.get(self.__data["cat"],
+                                      f"unknown: {self.__data['cat']}")
