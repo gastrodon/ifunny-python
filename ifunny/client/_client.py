@@ -6,7 +6,8 @@ from hashlib import sha1
 from base64 import b64encode
 from pathlib import Path
 
-from ifunny import objects, util
+from ifunny import objects
+from ifunny.util import methods, exceptions
 from ifunny.ext import commands
 from ifunny.client import _handler as handler
 from ifunny.client import _sendbird as sendbird
@@ -43,7 +44,6 @@ class Client(objects._mixin.ClientBase):
         self.__id = None
 
         # sendbird api info
-        self.sendbird_session_key = None
         self.__messenger_token = None
         self.__sendbird_req_id = int(time.time() * 1000 + random() * 1000000)
 
@@ -138,8 +138,7 @@ class Client(objects._mixin.ClientBase):
                                      data=data)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         self.__token = response.json()["access_token"]
         self.authenticated = True
@@ -258,8 +257,7 @@ class Client(objects._mixin.ClientBase):
         response = requests.put(f"{self.api}/reads/all")
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
     def suggested_tags(self, query):
         """
@@ -293,10 +291,7 @@ class Client(objects._mixin.ClientBase):
         :raises: Exception stating that the socket is already alive
         """
         if self.socket.active:
-            raise util.exceptions.ChatAlreadyActive("Already started")
-
-        if not self.messenger_token:
-            self.messenger_token = self._account_data["messenger_token"]
+            raise exceptions.ChatAlreadyActive("Already started")
 
         return self.socket.start()
 
@@ -336,8 +331,7 @@ class Client(objects._mixin.ClientBase):
                                  data=data)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return response.json()["url"]
 
@@ -394,15 +388,15 @@ class Client(objects._mixin.ClientBase):
     def sendbird_headers(self):
         """
         Generate headers for a sendbird api call.
-        If a sendbird_session_key exists, it's added
+        If a messenger_token exists, it's added
 
         :returns: sendbird-ready headers
         :rtype: dict
         """
         _headers = {"User-Agent": "jand/3.096"}
 
-        if self.sendbird_session_key:
-            _headers["Session-Key"] = self.sendbird_session_key
+        if self.messenger_token:
+            _headers["Session-Key"] = self.messenger_token
 
         return _headers
 
@@ -476,9 +470,13 @@ class Client(objects._mixin.ClientBase):
         :rtype: str
         """
         if not self.__messenger_token:
-            self.__messenger_token = self._get_prop("messenger_token")
+            self.__messenger_token = self.fresh._get_prop("messenger_token")
 
         return self.__messenger_token
+
+    @messenger_token.setter
+    def messenger_token(self, value):
+        self.__messenger_token = value
 
     @property
     def unread_notifications(self):
@@ -577,3 +575,18 @@ class Client(objects._mixin.ClientBase):
         Alias for ``self.user.timeline``
         """
         return self.user.timeline
+
+    @property
+    def chats(self):
+        """
+        generator for a Client's chats.
+        Each iteration will return the next chat, in order of last message
+
+        :returns: generator iterating through chats
+        :rtype: generator<Chat>
+        """
+        if not self.messenger_token:
+            raise exceptions.ChatNotActive(
+                "Chat must be started at least once to get a session key")
+
+        return methods.paginated_generator(self._chats_paginated)

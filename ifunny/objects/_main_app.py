@@ -2,7 +2,8 @@ import requests, json
 
 from collections.abc import Iterable
 
-from ifunny import objects, util
+from ifunny import objects
+from ifunny.util import methods, exceptions
 from ifunny.objects import _mixin as mixin
 
 
@@ -34,7 +35,7 @@ class User(mixin.ObjectMixin):
         limit = limit if limit else self.paginated_size
         limit = min(100, limit)
 
-        data = util.methods.paginated_data(
+        data = methods.paginated_data(
             f"{self.client.api}/timelines/users/{self.id}",
             "content",
             self.headers,
@@ -47,46 +48,46 @@ class User(mixin.ObjectMixin):
             for item in data["items"]
         ]
 
-        return util.methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)
 
     def _subscribers_paginated(self, limit=None, prev=None, next=None):
         limit = limit if limit else self.paginated_size
 
-        data = util.methods.paginated_data(f"{self._url}/subscribers",
-                                           "users",
-                                           self.headers,
-                                           limit=limit,
-                                           prev=prev,
-                                           next=next)
+        data = methods.paginated_data(f"{self._url}/subscribers",
+                                      "users",
+                                      self.headers,
+                                      limit=limit,
+                                      prev=prev,
+                                      next=next)
 
         items = [
             User(item["id"], client=self.client, data=item)
             for item in data["items"]
         ]
 
-        return util.methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)
 
     def _subscriptions_paginated(self, limit=None, prev=None, next=None):
         limit = limit if limit else self.paginated_size
 
-        data = util.methods.paginated_data(f"{self._url}/subscriptions",
-                                           "users",
-                                           self.headers,
-                                           limit=limit,
-                                           prev=prev,
-                                           next=next)
+        data = methods.paginated_data(f"{self._url}/subscriptions",
+                                      "users",
+                                      self.headers,
+                                      limit=limit,
+                                      prev=prev,
+                                      next=next)
 
         items = [
             User(item["id"], client=self.client, data=item)
             for item in data["items"]
         ]
 
-        return util.methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)
 
     # actions
 
     @classmethod
-    def by_nick(cls, nick, client):
+    def by_nick(cls, nick, client=mixin.ClientBase()):
         """
         Get a user from their nick.
 
@@ -106,8 +107,7 @@ class User(mixin.ObjectMixin):
             return None
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         response = response.json()
         return cls(response["data"]["id"], client, data=response["data"])
@@ -123,8 +123,7 @@ class User(mixin.ObjectMixin):
                                 headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -139,8 +138,7 @@ class User(mixin.ObjectMixin):
                                    headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return True
 
@@ -172,8 +170,7 @@ class User(mixin.ObjectMixin):
             if response.json().get("error") == "already_blocked":
                 return self.fresh
 
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -195,8 +192,7 @@ class User(mixin.ObjectMixin):
             if response.json().get("error") == "not_blocked":
                 return False
 
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return True
 
@@ -230,8 +226,7 @@ class User(mixin.ObjectMixin):
                                 params=params)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -247,8 +242,7 @@ class User(mixin.ObjectMixin):
             headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -264,8 +258,7 @@ class User(mixin.ObjectMixin):
             headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -292,8 +285,7 @@ class User(mixin.ObjectMixin):
                                 headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return response
 
@@ -320,8 +312,7 @@ class User(mixin.ObjectMixin):
                                 headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return response
 
@@ -334,7 +325,7 @@ class User(mixin.ObjectMixin):
 
         :rtype: generator<Post>
         """
-        return util.methods.paginated_generator(self._timeline_paginated)
+        return methods.paginated_generator(self._timeline_paginated)
 
     @property
     def subscribers(self):
@@ -343,7 +334,7 @@ class User(mixin.ObjectMixin):
 
         :rtype: generator<User>
         """
-        return util.methods.paginated_generator(self._subscribers_paginated)
+        return methods.paginated_generator(self._subscribers_paginated)
 
     @property
     def subscriptions(self):
@@ -352,7 +343,7 @@ class User(mixin.ObjectMixin):
 
         :rtype: generator<User>
         """
-        return util.methods.paginated_generator(self._subscriptions_paginated)
+        return methods.paginated_generator(self._subscriptions_paginated)
 
     # public properties
 
@@ -522,7 +513,7 @@ class User(mixin.ObjectMixin):
     @property
     def chat(self):
         """
-        :returns: this users chat chat, if ``user.can_chat``
+        :returns: this users chat, if ``user.can_chat``
         :rtype: Chat
         """
         if self.chat_url:
@@ -620,36 +611,36 @@ class Post(mixin.ObjectMixin):
     def _smiles_paginated(self, limit=None, prev=None, next=None):
         limit = limit if limit else self.paginated_size
 
-        data = util.methods.paginated_data(f"{self._url}/smiles",
-                                           "users",
-                                           self.headers,
-                                           limit=limit,
-                                           prev=prev,
-                                           next=next)
+        data = methods.paginated_data(f"{self._url}/smiles",
+                                      "users",
+                                      self.headers,
+                                      limit=limit,
+                                      prev=prev,
+                                      next=next)
 
         items = [
             User(item["id"], client=self.client, data=item)
             for item in data["items"]
         ]
 
-        return util.methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)
 
     def _comments_paginated(self, limit=None, prev=None, next=None):
         limit = limit if limit else self.paginated_size
 
-        data = util.methods.paginated_data(f"{self._url}/comments",
-                                           "comments",
-                                           self.headers,
-                                           limit=limit,
-                                           prev=prev,
-                                           next=next)
+        data = methods.paginated_data(f"{self._url}/comments",
+                                      "comments",
+                                      self.headers,
+                                      limit=limit,
+                                      prev=prev,
+                                      next=next)
 
         items = [
             Comment(item["id"], client=self.client, data=item, post=self)
             for item in data["items"]
         ]
 
-        return util.methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)
 
     # public methods
 
@@ -671,7 +662,7 @@ class Post(mixin.ObjectMixin):
         """
 
         if not any((text, post, user_mentions)):
-            raise util.exceptions.NoContent(
+            raise exceptions.NoContent(
                 "Must have at least one of (text, post, user_mentions)")
 
         data = {}
@@ -681,12 +672,11 @@ class Post(mixin.ObjectMixin):
 
         if user_mentions:
             if any([user.nick not in text for user in user_mentions]):
-                raise util.exceptions.TooManyMentions(
+                raise exceptions.TooManyMentions(
                     "Not all user mentions are included in the text")
 
             formatted = [
-                ":".join([user.id,
-                          util.methods.get_slice(text, user.nick)])
+                ":".join([user.id, methods.get_slice(text, user.nick)])
                 for user in user_mentions
             ]
             data["user_mentions"] = ";".join(formatted)
@@ -696,7 +686,7 @@ class Post(mixin.ObjectMixin):
                 post = Post(post, client=self.client)
 
             if post.author != self.client.user:
-                raise util.exceptions.NotOwnContent(
+                raise exceptions.NotOwnContent(
                     "Users can only add ther own posts to a meme")
 
             data["content"] = post.id
@@ -706,13 +696,12 @@ class Post(mixin.ObjectMixin):
                                  headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         response = response.json()
 
         if response["data"]["id"] == "000000000000000000000000":
-            raise util.exceptions.FailedToComment(
+            raise exceptions.FailedToComment(
                 f"Failed to add the comment {text}. Are you posting the same comment too fast?"
             )
 
@@ -730,8 +719,7 @@ class Post(mixin.ObjectMixin):
         response = requests.put(f"{self._url}/smiles", headers=self.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -745,8 +733,7 @@ class Post(mixin.ObjectMixin):
         response = requests.delete(f"{self._url}/smiles", headers=self.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -760,8 +747,7 @@ class Post(mixin.ObjectMixin):
         response = requests.put(f"{self._url}/unsmiles", headers=self.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -776,8 +762,7 @@ class Post(mixin.ObjectMixin):
                                    headers=self.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -795,8 +780,7 @@ class Post(mixin.ObjectMixin):
             return None
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return Post(response.json()["data"]["id"], client=self.client)
 
@@ -815,8 +799,7 @@ class Post(mixin.ObjectMixin):
             return self
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -853,8 +836,7 @@ class Post(mixin.ObjectMixin):
                                 params=params)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -875,7 +857,7 @@ class Post(mixin.ObjectMixin):
         """
 
         if self.author != self.client.user:
-            raise util.exceptions.NotOwnContent(
+            raise exceptions.NotOwnContent(
                 f"Post must belong to the client, but belongs to {self.author.nick}"
             )
 
@@ -888,8 +870,7 @@ class Post(mixin.ObjectMixin):
                                 data=data)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -905,8 +886,7 @@ class Post(mixin.ObjectMixin):
         response = requests.delete(self._url, headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -923,8 +903,7 @@ class Post(mixin.ObjectMixin):
         response = requests.put(f"{self._url}/pinned", headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -940,8 +919,7 @@ class Post(mixin.ObjectMixin):
         response = requests.delete(f"{self._url}/pinned", headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -971,8 +949,7 @@ class Post(mixin.ObjectMixin):
                                   headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self
 
@@ -1001,8 +978,7 @@ class Post(mixin.ObjectMixin):
                                   headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self
 
@@ -1015,7 +991,7 @@ class Post(mixin.ObjectMixin):
 
         :rtype: generator<User>
         """
-        return util.methods.paginated_generator(self._smiles_paginated)
+        return methods.paginated_generator(self._smiles_paginated)
 
     @property
     def comments(self):
@@ -1024,7 +1000,7 @@ class Post(mixin.ObjectMixin):
 
         :rtype: generator<Comment>
         """
-        return util.methods.paginated_generator(self._comments_paginated)
+        return methods.paginated_generator(self._comments_paginated)
 
     # private properties
 
@@ -1330,7 +1306,7 @@ class Comment(mixin.CommentMixin):
         self.__cid = None
 
         if self._post == None and self._account_data_payload["cid"] == None:
-            raise util.exceptions.BadAPIResponse("This needs a post")
+            raise exceptions.BadAPIResponse("This needs a post")
 
         self._absolute_url = f"{self.client.api}/content/{self.cid}/comments"
 
@@ -1342,12 +1318,12 @@ class Comment(mixin.CommentMixin):
     def _replies_paginated(self, limit=None, prev=None, next=None):
         limit = limit if limit else self.paginated_size
 
-        data = util.methods.paginated_data(f"{self._url}/replies",
-                                           "replies",
-                                           self.headers,
-                                           limit=limit,
-                                           prev=prev,
-                                           next=next)
+        data = methods.paginated_data(f"{self._url}/replies",
+                                      "replies",
+                                      self.headers,
+                                      limit=limit,
+                                      prev=prev,
+                                      next=next)
 
         items = [
             Comment(item["id"],
@@ -1357,7 +1333,7 @@ class Comment(mixin.CommentMixin):
                     root=self.id) for item in data["items"]
         ]
 
-        return util.methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)
 
     # public methods
 
@@ -1379,7 +1355,7 @@ class Comment(mixin.CommentMixin):
         """
 
         if not any((text, post, user_mentions)):
-            raise util.exceptions.NoContent(
+            raise exceptions.NoContent(
                 "Must have at least one of (text, post, user_mentions)")
 
         data = {}
@@ -1389,12 +1365,11 @@ class Comment(mixin.CommentMixin):
 
         if user_mentions:
             if any([user.nick not in text for user in user_mentions]):
-                raise util.exceptions.TooManyMentions(
+                raise exceptions.TooManyMentions(
                     "Not all user mentions are included in the text")
 
             formatted = [
-                ":".join([user.id,
-                          util.methods.get_slice(text, user.nick)])
+                ":".join([user.id, methods.get_slice(text, user.nick)])
                 for user in user_mentions
             ]
             data["user_mentions"] = ";".join(formatted)
@@ -1404,7 +1379,7 @@ class Comment(mixin.CommentMixin):
                 post = Post(post, client=self.client)
 
             if post.author != self.client.user:
-                raise util.exceptions.NotOwnContent(
+                raise exceptions.NotOwnContent(
                     "Users can only add ther own posts to a meme")
 
             data["content"] = post.id
@@ -1414,13 +1389,12 @@ class Comment(mixin.CommentMixin):
                                  headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         response = response.json()
 
         if response["data"]["id"] == "000000000000000000000000":
-            raise util.exceptions.FailedToComment(
+            raise exceptions.FailedToComment(
                 f"Failed to add the comment {text}. Are you posting the same comment too fast?"
             )
 
@@ -1453,8 +1427,7 @@ class Comment(mixin.CommentMixin):
                                 headers=self.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1469,8 +1442,7 @@ class Comment(mixin.CommentMixin):
                                    headers=self.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1485,8 +1457,7 @@ class Comment(mixin.CommentMixin):
                                 headers=self.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1501,8 +1472,7 @@ class Comment(mixin.CommentMixin):
                                    headers=self.headers)
 
         if response.status_code != 200 and response.status_code != 403:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1536,8 +1506,7 @@ class Comment(mixin.CommentMixin):
                                 params=params)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 
@@ -1550,7 +1519,7 @@ class Comment(mixin.CommentMixin):
         :rtype: generator<Comment>
         """
         if not self.depth:
-            for x in util.methods.paginated_generator(self._replies_paginated):
+            for x in methods.paginated_generator(self._replies_paginated):
                 yield x
         else:
             for _comment in self.root.replies:
@@ -1889,19 +1858,19 @@ class Channel:
         return self.__data.get(key, default)
 
     def _feed_paginated(self, limit=30, next=None, prev=None):
-        data = util.methods.paginated_data(self._feed_url,
-                                           "content",
-                                           self.headers,
-                                           limit=limit,
-                                           prev=prev,
-                                           next=prev)
+        data = methods.paginated_data(self._feed_url,
+                                      "content",
+                                      self.headers,
+                                      limit=limit,
+                                      prev=prev,
+                                      next=prev)
 
         items = [
             Post(item["id"], client=self.client, data=item)
             for item in data["items"]
         ]
 
-        return util.methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)
 
     def __eq__(self, other):
         return self.id == other
@@ -1915,7 +1884,7 @@ class Channel:
         :returns: generator iterating the channel feed
         :rtype: generator<Post>
         """
-        return util.methods.paginated_generator(self._feed_paginated)
+        return methods.paginated_generator(self._feed_paginated)
 
 
 class Digest(mixin.ObjectMixin):
@@ -1960,7 +1929,7 @@ class Digest(mixin.ObjectMixin):
             try:
                 self._account_data_payload = response.json()["data"]
             except KeyError:
-                raise util.exceptions.BadAPIResponse(
+                raise exceptions.BadAPIResponse(
                     f"{response.url}, {response.text}")
 
         return self._account_data_payload
@@ -1990,8 +1959,7 @@ class Digest(mixin.ObjectMixin):
                                  headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self.fresh
 

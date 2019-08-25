@@ -137,8 +137,7 @@ class ClientBase:
                                 headers=self.sendbird_headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         response = response.json()
 
@@ -425,21 +424,6 @@ class ClientBase:
         return methods.paginated_generator(self._featured_paginated)
 
     @property
-    def chats(self):
-        """
-        generator for a Client's chats.
-        Each iteration will return the next chat, in order of last message
-
-        :returns: generator iterating through chats
-        :rtype: generator<Chat>
-        """
-        if not self.sendbird_session_key:
-            raise util.exceptions.ChatNotActive(
-                "Chat must be started at least once to get a session key")
-
-        return methods.paginated_generator(self._chats_paginated)
-
-    @property
     def digests(self):
         """
         :returns: digests available to the client from explore
@@ -472,8 +456,7 @@ class ClientBase:
         response = requests.get(f"{self.api}/channels", headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return [
             objects.Channel(data["id"], client=self, data=data)
@@ -490,13 +473,16 @@ class ClientBase:
                                 headers=self.headers)
 
         if response.status_code != 200:
-            raise util.exceptions.BadAPIResponse(
-                f"{response.url}, {response.text}")
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return [
             objects.Chat(data["channel_url"], self, data=data)
             for data in response.json()["data"]["channels"]
         ]
+
+    @property
+    def messenger_token(self):
+        return None
 
 
 class ObjectMixin:
@@ -548,7 +534,7 @@ class ObjectMixin:
             try:
                 self._account_data_payload = response.json()["data"]
             except KeyError:
-                raise util.exceptions.BadAPIResponse(
+                raise exceptions.BadAPIResponse(
                     f"{response.url}, {response.text}")
 
         return self._account_data_payload
@@ -618,7 +604,7 @@ class CommentMixin(ObjectMixin):
             try:
                 self._account_data_payload = response.json()["data"]["comment"]
             except KeyError:
-                raise util.exceptions.BadAPIResponse(
+                raise exceptions.BadAPIResponse(
                     f"{response.url}, {response.text}")
 
         return self._account_data_payload
@@ -648,8 +634,8 @@ class SendbirdMixin(ObjectMixin):
     @property
     def _account_data(self):
         if self._update or self._account_data_payload is None:
-            if not self.client.sendbird_session_key:
-                raise util.exceptions.ChatNotActive(
+            if not self.client.messenger_token:
+                raise exceptions.ChatNotActive(
                     "Chat must have been activated to get sendbird api token")
 
             self._update = False
@@ -663,7 +649,7 @@ class SendbirdMixin(ObjectMixin):
             try:
                 self._account_data_payload = response.json()
             except KeyError:
-                raise util.exceptions.BadAPIResponse(
+                raise exceptions.BadAPIResponse(
                     f"{response.url}, {response.text}")
 
         return self._account_data_payload

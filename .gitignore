@@ -2,7 +2,7 @@
 ignore
 __py*
 venv*
-test.*
+foo.*
 cogtest.*
 
 _build
