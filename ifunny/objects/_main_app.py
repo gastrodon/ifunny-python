@@ -1306,13 +1306,14 @@ class Comment(mixin.CommentMixin):
         self.__cid = None
 
         if self._post == None and self._account_data_payload["cid"] == None:
-            raise exceptions.BadAPIResponse("This needs a post")
+            raise ValueError("This needs a post")
 
         self._absolute_url = f"{self.client.api}/content/{self.cid}/comments"
 
         self._url = f"{self.client.api}/content/{self.cid}/comments/{self.id}"
 
     def __repr__(self):
+        # todo image url if any
         return self.content
 
     def _replies_paginated(self, limit=None, prev=None, next=None):
@@ -1340,7 +1341,7 @@ class Comment(mixin.CommentMixin):
     def reply(self, text=None, post=None, user_mentions=None):
         """
         Reply to a comment.
-        At least one of the parameters must be used, as users shoud not post empty replys.
+        At least one of the parameters must be used, as users cannot post empty replys.
 
         :param text: Text of the reply, if any
         :param post: Post to post in the reply, if any. Can be a post id or a Post object, but the Post in reference must belong to the client creating the reply
@@ -1349,6 +1350,8 @@ class Comment(mixin.CommentMixin):
         :type text: str
         :type post: Post or str
         :type user_mentions: list<User>
+
+        :raises: exceptions.FailedToComment
 
         :returns: the posted reply
         :rtype: Comment

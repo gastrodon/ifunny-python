@@ -12,9 +12,9 @@ This is a python library aiming to interface with python. To learn more about th
 About
 -----
 
-This library can do a number of things in the scope of interacting with iFunny, though it is still very much in development and not (even close to) everything is implemented. This bot is also able to interface with ifunny chat (which just looks to be a modified client of sendbird) in a way idomatic to Python.
+This library can do a number of things in the scope of interacting with iFunny, though it is still very much in development and not (even close to) everything is implemented. This library is also able to interface with ifunny chat (which just looks to be a modified client of sendbird) in a way idomatic to Python.
 
-Though you can interface with raw responses, this lib provides a number of decorators for chat events (with more on the way), as well as decorators for commands executed with prefixes (very much so inspired by discordpy). The chat client is ran in it's own thread (unless specified not to, see debugging docs) and each messages triggers an event (again, in a separate thread)
+Though you can interface with raw responses, this lib provides a number of decorators for chat events (with more on the way), as well as decorators for commands executed with prefixes (inspired by discordpy). The chat client is ran in it's own thread (unless specified not to, see debugging docs) and each messages triggers an event (again, in a separate thread)
 
 Examples
 --------
@@ -38,7 +38,7 @@ A simple echo bot might look like this::
     def _reply_with_same(message, args):
         message.send(f"You said {message.content}")
 
-    me.start_chat()
+    robot.start_chat()
 
 There's still much more to do, so feel free to create a pull. If you want to find me, my discord is Zero#5200. You can also join a guild with me `here <https://discordapp.com/invite/h3ZnhRM>`_.
 

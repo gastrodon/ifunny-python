@@ -107,7 +107,7 @@ class Client(objects._mixin.ClientBase):
         """
 
         if self.authenticated:
-            raise AlreadyAuthenticated(
+            raise exceptions.AlreadyAuthenticated(
                 f"This client instance already authenticated as {self.nick}")
 
         if not force and self._config.get(f"{email}_token"):

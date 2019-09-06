@@ -67,7 +67,8 @@ class Handler:
         self.get_ev("on_message")(message)
 
     def _on_connect(self, key, data):
-        self.client.messenger_token = data["key"]
+        if data.get("key"):
+            self.client.messener_token = data["key"]
         self.client.socket.connected = True
         self.get_ev("on_connect")(
             data)  # TODO: consider using an object for the data

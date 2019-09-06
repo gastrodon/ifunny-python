@@ -8,3 +8,4 @@ cogtest.*
 _build
 _static
 _templates
+.vscode
