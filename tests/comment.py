@@ -7,6 +7,11 @@ class CommentTest(unittest.TestCase):
     user = None
     comments = None
 
+    # stop when we find an error
+    def run(self, result = None):
+        if not result.errors:
+            super(CommentTest, self).run(result)
+
     @classmethod
     def setUpClass(cls):
         cls.user = objects.User.by_nick("kaffirtest")

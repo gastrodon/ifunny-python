@@ -5,6 +5,12 @@ from ifunny.objects import _mixin as mixin
 
 
 class ClientBaseTest(unittest.TestCase):
+
+    # stop when we find an error
+    def run(self, result = None):
+        if not result.errors:
+            super(ClientBaseTest, self).run(result)
+
     def test_featured_paginated(self):
         limit = random.randrange(3, 10)
         client = mixin.ClientBase(paginated_size = limit)
@@ -32,10 +38,8 @@ class ClientBaseTest(unittest.TestCase):
         assert isinstance(post, objects.Post)
 
     def test_digests_paginated(self):
-        limit = random.randrange(3, 7)
-        client = mixin.ClientBase(paginated_size = limit)
+        client = mixin.ClientBase()
         posts = client._digests_paginated()
-        assert len(posts["items"]) == limit
         assert isinstance(posts["items"][0], objects.Digest)
 
     def test_digests(self):

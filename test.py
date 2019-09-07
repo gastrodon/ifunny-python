@@ -1,7 +1,9 @@
 import unittest
 from tests.user import UserTest
-from tests.mixins import ClientBaseTest
+from tests.client_base import ClientBaseTest
 from tests.post import PostTest
 from tests.comment import CommentTest
+from tests.channel import ChannelTest
+from tests.digest import DigestTest
 
 unittest.main()
