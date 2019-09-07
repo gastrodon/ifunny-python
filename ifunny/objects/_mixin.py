@@ -16,7 +16,7 @@ class ClientBase:
     __client_id = "MsOIJ39Q28"
     __client_secret = "PTDc3H8a)Vi=UYap"
 
-    def __init__(self, paginated_size=25):
+    def __init__(self, paginated_size = 25):
         # locks
         self._sendbird_lock = threading.Lock()
         self._config_lock = threading.Lock()
@@ -86,35 +86,38 @@ class ClientBase:
         :rtype: dict
         "User-Agent"    : self._user_agent,
         """
-        return {"Authorization": f"Basic {self.basic_token}"}
+        return {
+            "Authorization": f"Basic {self.basic_token}",
+            "User-Agent": self._user_agent
+        }
 
-    def _notifications_paginated(self, limit=400, prev=None, next=None):
+    def _notifications_paginated(self, limit = 400, prev = None, next = None):
         limit = min(limit, self.paginated_size)
         data = methods.paginated_data(f"{self.api}/news/my",
                                       "news",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next)
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
 
         items = [
-            objects.Notification(item, client=self) for item in data["items"]
+            objects.Notification(item, client = self) for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)  # test in ClientTest()
 
     def _chats_paginated(self,
-                         limit=100,
-                         next=None,
-                         prev=None,
-                         show_empty=True,
-                         show_read_recipt=True,
-                         show_member=True,
-                         public_mode="all",
-                         super_mode="all",
-                         distinct_mode="all",
-                         member_state_filter="all",
-                         order="latest_last_message"):
+                         limit = 100,
+                         next = None,
+                         prev = None,
+                         show_empty = True,
+                         show_read_recipt = True,
+                         show_member = True,
+                         public_mode = "all",
+                         super_mode = "all",
+                         distinct_mode = "all",
+                         member_state_filter = "all",
+                         order = "latest_last_message"):
         limit = min(limit, 100)
 
         params = {
@@ -133,8 +136,8 @@ class ClientBase:
         url = f"{self.sendbird_api}/users/{self.id}/my_group_channels"
 
         response = requests.get(url,
-                                params=params,
-                                headers=self.sendbird_headers)
+                                params = params,
+                                headers = self.sendbird_headers)
 
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
@@ -147,175 +150,187 @@ class ClientBase:
             "paging":
             paging,
             "items": [
-                objects.Chat(data["channel_url"], self, data=data)
+                objects.Chat(data["channel_url"], self, data = data)
                 for data in response["channels"]
             ]
         }  # test in ClientTest()
 
-    def _reads_paginaged(self, limit=30, next=None, prev=None):
+    def _reads_paginaged(self, limit = 30, next = None, prev = None):
         limit = self.paginated_size
         data = methods.paginated_data(f"{self.api}/feeds/reads",
                                       "content",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next)
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
 
         items = [
-            objects.Post(item["id"], client=self, data=item)
+            objects.Post(item["id"], client = self, data = item)
             for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)  # test in ClientTest()
 
-    def _collective_paginated(self, limit=375, next=None, prev=None):
+    def _collective_paginated(self, limit = 375, next = None, prev = None):
         limit = min(limit, self.paginated_size)
         data = methods.paginated_data(f"{self.api}/feeds/collective",
                                       "content",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next,
-                                      post=True)
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next,
+                                      post = True)
 
         items = [
-            objects.Post(item["id"], client=self, data=item)
+            objects.Post(item["id"], client = self, data = item)
             for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)
 
-    def _featured_paginated(self, limit=30, next=None, prev=None):
+    def _featured_paginated(self, limit = 30, next = None, prev = None):
         limit = min(limit, self.paginated_size)
         data = methods.paginated_data(f"{self.api}/feeds/featured",
                                       "content",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next)
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
 
         items = [
-            objects.Post(item["id"], client=self, data=item)
+            objects.Post(item["id"], client = self, data = item)
             for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)
 
-    def _home_paginated(self, limit=100, next=None, prev=None):
+    def _home_paginated(self, limit = 100, next = None, prev = None):
         limit = min(limit, self.paginated_size)
         data = methods.paginated_data(f"{self.api}/timelines/home",
                                       "content",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next)
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
 
         items = [
-            objects.Post(item["id"], client=self, data=item)
+            objects.Post(item["id"], client = self, data = item)
             for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)  # test in ClientTest()
 
-    def _digests_paginated(self, limit=5, next=None, prev=None):
+    def _digests_paginated(self, limit = 5, next = None, prev = None):
         limit = self.paginated_size
         data = methods.paginated_data(f"{self.api}/digest_groups",
                                       None,
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next,
-                                      ex_params={"contents": 0})
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next,
+                                      ex_params = {"contents": 0})
 
         items = [
-            objects.Digest(item["id"], client=self, data=item)
+            objects.Digest(item["id"], client = self, data = item)
             for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)
 
-    def _search_tags_paginated(self, query, limit=30, next=None, prev=None):
+    def _search_tags_paginated(self,
+                               query,
+                               limit = 30,
+                               next = None,
+                               prev = None):
         limit = self.paginated_size
         data = methods.paginated_data(f"{self.api}/search/content",
                                       "content",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next,
-                                      ex_params={"tag": query})
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next,
+                                      ex_params = {"tag": query})
 
         items = [
-            objects.Post(item["id"], client=self, data=item)
+            objects.Post(item["id"], client = self, data = item)
             for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)
 
-    def _search_users_paginated(self, query, limit=50, next=None, prev=None):
+    def _search_users_paginated(self,
+                                query,
+                                limit = 50,
+                                next = None,
+                                prev = None):
         limit = self.paginated_size
         data = methods.paginated_data(f"{self.api}/search/users",
                                       "users",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next,
-                                      ex_params={"q": query})
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next,
+                                      ex_params = {"q": query})
 
         items = [
-            objects.User(item["id"], client=self, data=item)
+            objects.User(item["id"], client = self, data = item)
             for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)
 
-    def _search_chats_paginated(self, query, limit=20, next=None, prev=None):
+    def _search_chats_paginated(self,
+                                query,
+                                limit = 20,
+                                next = None,
+                                prev = None):
         limit = self.paginated_size
         data = methods.paginated_data(f"{self.api}/search/chats/channels",
                                       "channels",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next,
-                                      ex_params={"q": query})
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next,
+                                      ex_params = {"q": query})
 
         items = [
-            objects.Chat(item["channel_url"], self, data=item)
+            objects.Chat(item["channel_url"], self, data = item)
             for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)
 
-    def _smiles_paginated(self, limit=30, next=None, prev=None):
+    def _smiles_paginated(self, limit = 30, next = None, prev = None):
         limit = self.paginated_size
         data = methods.paginated_data(f"{self.api}/users/my/content_smiles",
                                       "content",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next)
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
 
         items = [
-            objects.Post(item["id"], client=self, data=item)
+            objects.Post(item["id"], client = self, data = item)
             for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)  # test in ClientTest()
 
-    def _comments_paginated(self, limit=30, next=None, prev=None):
+    def _comments_paginated(self, limit = 30, next = None, prev = None):
         limit = self.paginated_size
         data = methods.paginated_data(f"{self.api}/users/my/content_smiles",
                                       "content",
                                       self.headers,
-                                      limit=limit,
-                                      prev=prev,
-                                      next=next)
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
 
         items = [
             objects.Comment(item["id"],
-                            client=self,
-                            data=item,
-                            post=data["cid"],
-                            root=data.get("root_comm_id"))
+                            client = self,
+                            data = item,
+                            post = data["cid"],
+                            root = data.get("root_comm_id"))
             for item in data["items"]
         ]
 
@@ -458,13 +473,13 @@ class ClientBase:
         :returns: a list of channels featured in explore
         :rtype: list<Channel>
         """
-        response = requests.get(f"{self.api}/channels", headers=self.headers)
+        response = requests.get(f"{self.api}/channels", headers = self.headers)
 
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return [
-            objects.Channel(data["id"], client=self, data=data)
+            objects.Channel(data["id"], client = self, data = data)
             for data in response.json()["data"]["channels"]["items"]
         ]
 
@@ -475,13 +490,13 @@ class ClientBase:
         :rtype: list<Chat>
         """
         response = requests.get(f"{self.api}/chats/channels/trending",
-                                headers=self.headers)
+                                headers = self.headers)
 
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return [
-            objects.Chat(data["channel_url"], self, data=data)
+            objects.Chat(data["channel_url"], self, data = data)
             for data in response.json()["data"]["channels"]
         ]
 
@@ -507,7 +522,11 @@ class ObjectMixin:
     """
     api = "https://api.ifunny.mobi/v4"
 
-    def __init__(self, id, client=ClientBase(), data=None, paginated_size=30):
+    def __init__(self,
+                 id,
+                 client = ClientBase(),
+                 data = None,
+                 paginated_size = 30):
         self.client = client
         self.id = id
 
@@ -521,7 +540,7 @@ class ObjectMixin:
         self.__home_path = f"{Path.home()}/.ifunnypy"
         self.__cache_path = f"{self.__home_path}/config.json"
 
-    def _get_prop(self, key, default=None):
+    def _get_prop(self, key, default = None):
         if not self._object_data.get(key, None):
             self._update = True
 
@@ -534,7 +553,7 @@ class ObjectMixin:
     def _object_data(self):
         if self._update or self._object_data_payload is None:
             self._update = False
-            response = requests.get(self._url, headers=self.headers)
+            response = requests.get(self._url, headers = self.headers)
 
             try:
                 self._object_data_payload = response.json()["data"]
@@ -559,7 +578,7 @@ class ObjectMixin:
         :returns: is this object deleted?
         :rtype: bool
         """
-        return self._get_prop("is_deleted", default=False)
+        return self._get_prop("is_deleted", default = False)
 
     @property
     def headers(self):
@@ -588,15 +607,15 @@ class CommentMixin(ObjectMixin):
     """
     def __init__(self,
                  id,
-                 client=ClientBase(),
-                 data=None,
-                 paginated_size=30,
-                 post=None,
-                 root=None):
+                 client = ClientBase(),
+                 data = None,
+                 paginated_size = 30,
+                 post = None,
+                 root = None):
         super().__init__(id,
-                         client=client,
-                         data=data,
-                         paginated_size=paginated_size)
+                         client = client,
+                         data = data,
+                         paginated_size = paginated_size)
         self._post = post
         self._root = root
 
@@ -604,7 +623,7 @@ class CommentMixin(ObjectMixin):
     def _object_data(self):
         if self._update or self._object_data_payload is None:
             self._update = False
-            response = requests.get(self._url, headers=self.headers)
+            response = requests.get(self._url, headers = self.headers)
 
             try:
                 self._object_data_payload = response.json()["data"]["comment"]
@@ -630,11 +649,15 @@ class SendbirdMixin(ObjectMixin):
     :type data: dict
     :type paginated_size: int
     """
-    def __init__(self, id, client=ClientBase(), data=None, paginated_size=30):
+    def __init__(self,
+                 id,
+                 client = ClientBase(),
+                 data = None,
+                 paginated_size = 30):
         super().__init__(id,
-                         client=client,
-                         data=data,
-                         paginated_size=paginated_size)
+                         client = client,
+                         data = data,
+                         paginated_size = paginated_size)
 
     @property
     def _object_data(self):
@@ -645,7 +668,7 @@ class SendbirdMixin(ObjectMixin):
 
             self._update = False
             response = requests.get(self._url,
-                                    headers=self.client.sendbird_headers)
+                                    headers = self.client.sendbird_headers)
 
             if response.status_code == 403:
                 self._object_data_payload = {}

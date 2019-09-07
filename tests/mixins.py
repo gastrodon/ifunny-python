@@ -1,5 +1,5 @@
 import unittest
-import random
+import random, threading, pathlib, os, shutil
 from ifunny import objects
 from ifunny.objects import _mixin as mixin
 
@@ -58,11 +58,55 @@ class ClientBaseTest(unittest.TestCase):
         client._config = {}
         assert len(client.basic_token) == 156
 
+    def test_user_agent(self):
+        assert isinstance(mixin.ClientBase()._user_agent, str)
+
     def test_headers(self):
         client = mixin.ClientBase()
         client._config = {}
         token = client.basic_token
-        assert client.headers == {"Authorization": f"Basic {token}"}
+        assert client.headers == {
+            "Authorization": f"Basic {token}",
+            "User-Agent": client._user_agent
+        }
+
+    def test_api(self):
+        assert mixin.ClientBase().api == "https://api.ifunny.mobi/v4"
+
+    def test_sendbird_api(self):
+        assert mixin.ClientBase(
+        ).sendbird_api == "https://api-us-1.sendbird.com/v3"
+
+    def test_client_id(self):
+        assert mixin.ClientBase()._ClientBase__client_id == "MsOIJ39Q28"
+
+    def test_client_secret(self):
+        assert mixin.ClientBase(
+        )._ClientBase__client_secret == "PTDc3H8a)Vi=UYap"
+
+    def test_config_lock(self):
+        assert isinstance(mixin.ClientBase()._config_lock,
+                          type(threading.Lock()))
+
+    def test_sendbird_lock(self):
+        assert isinstance(mixin.ClientBase()._sendbird_lock,
+                          type(threading.Lock()))
+
+    def test_home_path(self):
+        assert mixin.ClientBase(
+        )._home_path == f"{pathlib.Path.home()}/.ifunnypy"
+
+    def test_cache_path_create(self):
+        assert mixin.ClientBase(
+        )._cache_path == f"{mixin.ClientBase()._home_path}/config.json"
+
+    def test_home_path_create(self):
+        shutil.rmtree(mixin.ClientBase()._home_path, ignore_errors = True)
+        assert os.path.isdir(mixin.ClientBase()._home_path)
+
+    def test_home_path_exists(self):
+        shutil.rmtree(mixin.ClientBase()._home_path, ignore_errors = True)
+        assert os.path.isfile(mixin.ClientBase()._cache_path)
 
     # search methods may misbehave, ifunny is on some sort of lockdown
 

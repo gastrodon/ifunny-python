@@ -1414,7 +1414,7 @@ class Comment(mixin.CommentMixin):
 
         return Comment(response["data"]["id"],
                        client = self.client,
-                       data = response["data"]["comment"])
+                       data = response["data"]["comment"])  # test log in
 
     def delete(self):
         """
@@ -1428,7 +1428,7 @@ class Comment(mixin.CommentMixin):
         response = requests.delete(f"{self._absolute_url}/{self.id}",
                                    headers = self.headers)
 
-        return self
+        return self  # test log in
 
     def smile(self):
         """
@@ -1443,7 +1443,7 @@ class Comment(mixin.CommentMixin):
         if response.status_code != 200 and response.status_code != 403:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh
+        return self.fresh  # test log in
 
     def remove_smile(self):
         """
@@ -1458,7 +1458,7 @@ class Comment(mixin.CommentMixin):
         if response.status_code != 200 and response.status_code != 403:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh
+        return self.fresh  # test log in
 
     def unsmile(self):
         """
@@ -1473,7 +1473,7 @@ class Comment(mixin.CommentMixin):
         if response.status_code != 200 and response.status_code != 403:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh
+        return self.fresh  # test log in
 
     def remove_unsmile(self):
         """
@@ -1488,7 +1488,7 @@ class Comment(mixin.CommentMixin):
         if response.status_code != 200 and response.status_code != 403:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh
+        return self.fresh  # test log in
 
     def report(self, type):
         """
@@ -1522,7 +1522,7 @@ class Comment(mixin.CommentMixin):
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh
+        return self.fresh  # test log in
 
     # public generators
 
@@ -1615,7 +1615,7 @@ class Comment(mixin.CommentMixin):
         :returns: the post that this comment is on
         :rtype: Post
         """
-        return Post(self.cid, client = self.client)
+        return Post(self.cid, client = self.client)  ##
 
     @property
     def parent(self):
@@ -1630,7 +1630,7 @@ class Comment(mixin.CommentMixin):
                        client = self.client,
                        post = self.cid,
                        root = self._get_prop("root_comm_id") if self.depth -
-                       1 else None)
+                       1 else None)  ##
 
     @property
     def root(self):
@@ -1643,7 +1643,7 @@ class Comment(mixin.CommentMixin):
 
         return Comment(self._get_prop("root_comm_id"),
                        client = self.client,
-                       post = self.cid)
+                       post = self.cid)  ##
 
     @property
     def smile_count(self):
@@ -1684,7 +1684,7 @@ class Comment(mixin.CommentMixin):
         :returns: creation date timestamp
         :rtype: int
         """
-        self._get_prop("date")
+        self._get_prop("date")  # test log in
 
     @property
     def depth(self):
@@ -1695,7 +1695,7 @@ class Comment(mixin.CommentMixin):
         if self.is_root:
             return 0
 
-        return self._get_prop("depth")
+        return self._get_prop("depth")  ##
 
     @property
     def is_root(self):
@@ -1711,7 +1711,7 @@ class Comment(mixin.CommentMixin):
         :returns: has this comment been deleted?
         :rtype: bool
         """
-        return self._get_prop("is_deleted", default = False)
+        return self._get_prop("is_deleted", default = False)  # test log in
 
     @property
     def is_edited(self):
@@ -1755,7 +1755,7 @@ class Comment(mixin.CommentMixin):
         :returns: did I smile this comment?
         :rtype: bool
         """
-        return self._get_prop("is_smiled")
+        return self._get_prop("is_smiled")  # test log in
 
     @property
     def is_unsmiled(self):
@@ -1763,7 +1763,7 @@ class Comment(mixin.CommentMixin):
         :returns: did I unsmile this comment?
         :rtype: bool
         """
-        return self._get_prop("is_unsmiled")
+        return self._get_prop("is_unsmiled")  # test log in
 
 
 class Notification:

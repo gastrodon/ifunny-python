@@ -1,8 +1,13 @@
 # What's new
 
+### 0.9.2
+- `ClientBase` now has `User-Agent` headers. I don't know why it didn't before
+- some typos fixed in the docs
+- some incorrect \_get\_prop calls fixed for some properties
+
 ### 0.9.1
 - fix a bug with importing util
-- fix a bug with client using deprecated variable ``sendbird_session_key`` instead of the property ``messenger_token``
+- fix a bug with client using deprecated variable `sendbird_session_key` instead of the property `messenger_token`
 
 ### 0.9.0
 - split read-only methods out of `Client` to `ClientBase` for things that should not need logging in
