@@ -8,6 +8,11 @@ class PostTest(unittest.TestCase):
     pinned = None
     posts = {}
 
+    # stop when we find an error
+    def run(self, result = None):
+        if not result.errors:
+            super(PostTest, self).run(result)
+
     @staticmethod
     def get_first_of(type, timeline):
         for post in timeline:

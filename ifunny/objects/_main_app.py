@@ -1855,24 +1855,25 @@ class Notification:
         return self.__data.get("smiles")
 
 
-class Channel:
+class Channel(mixin.ObjectMixin):
     def __init__(self, id, client = mixin.ClientBase(), data = {}):
         """
         Object for ifunny explore channels.
 
         :param id: id of the feed
         :param client: Client that is requesting the feed
+        :param data: json data of this feed
 
         :type id: str
         :type client: Client
+        :type data: dict
         """
-        self.client = client
-        self.id = id
+        super().__init__(id, client = client, data = data)
         self._feed_url = f"{self.client.api}/channels/{self.id}/items"
-        self.__data = {}
 
     def _get_prop(self, key, default = None):
-        return self.__data.get(key, default)
+        # TODO: surely we can get updated information from somewhere?
+        return self._object_data_payload.get(key, default)
 
     def _feed_paginated(self, limit = 30, next = None, prev = None):
         data = methods.paginated_data(self._feed_url,
@@ -1962,7 +1963,7 @@ class Digest(mixin.ObjectMixin):
     def read(self, count = None):
         """
         Mark posts in this digest as read.
-        Will mark all unread by default
+        Will mark all read by default
 
         :param count: number of posts to mark as read
 
@@ -2006,7 +2007,8 @@ class Digest(mixin.ObjectMixin):
             root = Comment(data["rootCommentId"],
                            client = self.client,
                            post = post) if data.get("rootCommentId") else None
-            yield Comment(data["commentId"], client = self.client, post = post)
+            yield Comment(data["commentId"], client = self.client,
+                          post = post)  # test log in
 
     @property
     def title(self):
@@ -2054,7 +2056,7 @@ class Digest(mixin.ObjectMixin):
         :returns: number of unread posts in this digest
         :rtype: int
         """
-        return self._get_prop("unreads")
+        return self._get_prop("unreads")  ##
 
     @property
     def count(self):
@@ -2063,3 +2065,10 @@ class Digest(mixin.ObjectMixin):
         :rtype: int
         """
         return self._get_prop("count")
+
+    @property
+    def index(self):
+        """
+        Alias for ``Digest.count``
+        """
+        return self.count

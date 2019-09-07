@@ -5,6 +5,11 @@ from ifunny import objects
 class UserTest(unittest.TestCase):
     user = None
 
+    # stop when we find an error
+    def run(self, result = None):
+        if not result.errors:
+            super(UserTest, self).run(result)
+
     @classmethod
     def setUpClass(cls):
         cls.user = objects.User.by_nick("kaffirtest")  # this is my account

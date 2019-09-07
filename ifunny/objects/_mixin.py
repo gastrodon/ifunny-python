@@ -220,8 +220,7 @@ class ClientBase:
 
         return methods.paginated_format(data, items)  # test in ClientTest()
 
-    def _digests_paginated(self, limit = 5, next = None, prev = None):
-        limit = self.paginated_size
+    def _digests_paginated(self, limit = None, next = None, prev = None):
         data = methods.paginated_data(f"{self.api}/digest_groups",
                                       None,
                                       self.headers,
@@ -229,6 +228,9 @@ class ClientBase:
                                       prev = prev,
                                       next = next,
                                       ex_params = {"contents": 0})
+
+        nested = [item["items"] for item in data["items"]]
+        data["items"] = [item for sublist in nested for item in sublist]
 
         items = [
             objects.Digest(item["id"], client = self, data = item)
@@ -481,7 +483,8 @@ class ClientBase:
         return [
             objects.Channel(data["id"], client = self, data = data)
             for data in response.json()["data"]["channels"]["items"]
-        ]
+            if data["id"] != "latest_digest"
+        ]  # TODO: why is this not returning a generator? woner what my logic was
 
     @property
     def trending_chats(self):

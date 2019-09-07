@@ -2,8 +2,11 @@
 
 ### 0.9.2
 - `ClientBase` now has `User-Agent` headers. I don't know why it didn't before
+- `Client.channels` was broken because of weird data, fixed it
+- `Client.digests` was broken because of weird nested data, fixed it
 - some typos fixed in the docs
 - some incorrect \_get\_prop calls fixed for some properties
+- non-chat things are (mostly) tested
 
 ### 0.9.1
 - fix a bug with importing util
