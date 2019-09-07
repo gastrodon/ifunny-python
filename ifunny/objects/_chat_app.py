@@ -629,7 +629,7 @@ class ChatUser(objects.User):
             self._update = False
 
             members = [
-                member for member in self.chat._account_data.get("members")
+                member for member in self.chat._object_data.get("members")
                 if member["user_id"] == self.id
             ]
 

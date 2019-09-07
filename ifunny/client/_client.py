@@ -55,7 +55,7 @@ class Client(objects._mixin.ClientBase):
 
         # own profile data
         self.__user = None
-        self._account_data_payload = None
+        self._object_data_payload = None
         self._update = False
 
     def __repr__(self):
@@ -64,28 +64,28 @@ class Client(objects._mixin.ClientBase):
     # private methods
 
     def _get_prop(self, key, default=None):
-        if not self._account_data.get(key, None):
+        if not self._object_data.get(key, None):
             self._update = True
 
-        return self._account_data.get(key, default)
+        return self._object_data.get(key, default)
 
     # private properties
 
     @property
-    def _account_data(self):
+    def _object_data(self):
         """
         Get existing or request new account data
 
         returns
             dict
         """
-        if self._update or self._account_data_payload is None:
+        if self._update or self._object_data_payload is None:
             self._update = False
-            self._account_data_payload = requests.get(
+            self._object_data_payload = requests.get(
                 f"{self.api}/account", headers=self.headers).json(
                 )["data"] if self.authenticated else {}
 
-        return self._account_data_payload
+        return self._object_data_payload
 
     # public methods
 

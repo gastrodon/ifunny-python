@@ -66,7 +66,7 @@ class ClientBase:
         if self._config.get("login_token"):
             return self._config["login_token"]
 
-        hex_string = os.urandom(36).hex().upper()
+        hex_string = os.urandom(32).hex().upper()
         hex_id = f"{hex_string}_{self.__client_id}"
         hash_decoded = f"{hex_string}:{self.__client_id}:{self.__client_secret}"
         hash_encoded = sha1(hash_decoded.encode('utf-8')).hexdigest()
@@ -101,7 +101,7 @@ class ClientBase:
             objects.Notification(item, client=self) for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)  # test in ClientTest()
 
     def _chats_paginated(self,
                          limit=100,
@@ -150,7 +150,7 @@ class ClientBase:
                 objects.Chat(data["channel_url"], self, data=data)
                 for data in response["channels"]
             ]
-        }
+        }  # test in ClientTest()
 
     def _reads_paginaged(self, limit=30, next=None, prev=None):
         limit = self.paginated_size
@@ -166,7 +166,7 @@ class ClientBase:
             for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)  # test in ClientTest()
 
     def _collective_paginated(self, limit=375, next=None, prev=None):
         limit = min(limit, self.paginated_size)
@@ -186,7 +186,7 @@ class ClientBase:
         return methods.paginated_format(data, items)
 
     def _featured_paginated(self, limit=30, next=None, prev=None):
-        limit = self.paginated_size
+        limit = min(limit, self.paginated_size)
         data = methods.paginated_data(f"{self.api}/feeds/featured",
                                       "content",
                                       self.headers,
@@ -215,7 +215,7 @@ class ClientBase:
             for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)  # test in ClientTest()
 
     def _digests_paginated(self, limit=5, next=None, prev=None):
         limit = self.paginated_size
@@ -299,7 +299,7 @@ class ClientBase:
             for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)  # test in ClientTest()
 
     def _comments_paginated(self, limit=30, next=None, prev=None):
         limit = self.paginated_size
@@ -319,7 +319,7 @@ class ClientBase:
             for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)
+        return methods.paginated_format(data, items)  # test in ClientTest()
 
     def search_users(self, query):
         """
@@ -369,7 +369,8 @@ class ClientBase:
         :returns: generator iterating through notifications
         :rtype: generator<Notification>
         """
-        return methods.paginated_generator(self._notifications_paginated)
+        return methods.paginated_generator(
+            self._notifications_paginated)  # test in ClientTest()
 
     @property
     def reads(self):
@@ -380,7 +381,8 @@ class ClientBase:
         :returns: generator iterating through read posts
         :rtype: generator<Post>
         """
-        return methods.paginated_generator(self._reads_paginaged)
+        return methods.paginated_generator(
+            self._reads_paginaged)  # test in ClientTest()
 
     @property
     def viewed(self):
@@ -388,7 +390,7 @@ class ClientBase:
         Alias to Client.reads because ifunny's in-api name is dumb.
         You don't read a picture or video
         """
-        return self.reads
+        return self.reads  # test in ClientTest()
 
     @property
     def home(self):
@@ -399,7 +401,8 @@ class ClientBase:
         :returns: generator iterating the home feed
         :rtype: generator<Post>
         """
-        return methods.paginated_generator(self._home_paginated)
+        return methods.paginated_generator(
+            self._home_paginated)  # test in ClientTest()
 
     @property
     def collective(self):
@@ -437,7 +440,8 @@ class ClientBase:
         :returns: generator iterating posts that this client has smiled
         :rtype: generator<Post>
         """
-        return methods.paginated_generator(self._smiles_paginated)
+        return methods.paginated_generator(
+            self._smiles_paginated)  # test in ClientTest()
 
     @property
     def comments(self):
@@ -445,7 +449,8 @@ class ClientBase:
         :returns: generator iterating comments that this client has left
         :rtype: generator<Comment>
         """
-        return methods.paginated_generator(self._comments_paginated)
+        return methods.paginated_generator(
+            self._comments_paginated)  # test in ClientTest()
 
     @property
     def channels(self):
@@ -506,7 +511,7 @@ class ObjectMixin:
         self.client = client
         self.id = id
 
-        self._account_data_payload = data
+        self._object_data_payload = data
         self._update = data is None
 
         self._url = None
@@ -517,27 +522,27 @@ class ObjectMixin:
         self.__cache_path = f"{self.__home_path}/config.json"
 
     def _get_prop(self, key, default=None):
-        if not self._account_data.get(key, None):
+        if not self._object_data.get(key, None):
             self._update = True
 
-        return self._account_data.get(key, default)
+        return self._object_data.get(key, default)
 
     def __eq__(self, other):
         return self.id == other
 
     @property
-    def _account_data(self):
-        if self._update or self._account_data_payload is None:
+    def _object_data(self):
+        if self._update or self._object_data_payload is None:
             self._update = False
             response = requests.get(self._url, headers=self.headers)
 
             try:
-                self._account_data_payload = response.json()["data"]
+                self._object_data_payload = response.json()["data"]
             except KeyError:
                 raise exceptions.BadAPIResponse(
                     f"{response.url}, {response.text}")
 
-        return self._account_data_payload
+        return self._object_data_payload
 
     @property
     def fresh(self):
@@ -596,18 +601,18 @@ class CommentMixin(ObjectMixin):
         self._root = root
 
     @property
-    def _account_data(self):
-        if self._update or self._account_data_payload is None:
+    def _object_data(self):
+        if self._update or self._object_data_payload is None:
             self._update = False
             response = requests.get(self._url, headers=self.headers)
 
             try:
-                self._account_data_payload = response.json()["data"]["comment"]
+                self._object_data_payload = response.json()["data"]["comment"]
             except KeyError:
                 raise exceptions.BadAPIResponse(
                     f"{response.url}, {response.text}")
 
-        return self._account_data_payload
+        return self._object_data_payload
 
 
 class SendbirdMixin(ObjectMixin):
@@ -632,8 +637,8 @@ class SendbirdMixin(ObjectMixin):
                          paginated_size=paginated_size)
 
     @property
-    def _account_data(self):
-        if self._update or self._account_data_payload is None:
+    def _object_data(self):
+        if self._update or self._object_data_payload is None:
             if not self.client.messenger_token:
                 raise exceptions.ChatNotActive(
                     "Chat must have been activated to get sendbird api token")
@@ -643,13 +648,13 @@ class SendbirdMixin(ObjectMixin):
                                     headers=self.client.sendbird_headers)
 
             if response.status_code == 403:
-                self._account_data_payload = {}
-                return self._account_data_payload
+                self._object_data_payload = {}
+                return self._object_data_payload
 
             try:
-                self._account_data_payload = response.json()
+                self._object_data_payload = response.json()
             except KeyError:
                 raise exceptions.BadAPIResponse(
                     f"{response.url}, {response.text}")
 
-        return self._account_data_payload
+        return self._object_data_payload
