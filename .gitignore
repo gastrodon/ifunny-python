@@ -9,3 +9,5 @@ _build
 _static
 _templates
 .vscode
+
+test_auth.py

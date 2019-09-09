@@ -104,7 +104,8 @@ class ClientBase:
             objects.Notification(item, client = self) for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)  # test in ClientTest()
+        return methods.paginated_format(data,
+                                        items)  # test with another account
 
     def _chats_paginated(self,
                          limit = 100,
@@ -153,9 +154,9 @@ class ClientBase:
                 objects.Chat(data["channel_url"], self, data = data)
                 for data in response["channels"]
             ]
-        }  # test in ClientTest()
+        }  # test chat
 
-    def _reads_paginaged(self, limit = 30, next = None, prev = None):
+    def _reads_paginated(self, limit = 30, next = None, prev = None):
         limit = self.paginated_size
         data = methods.paginated_data(f"{self.api}/feeds/reads",
                                       "content",
@@ -169,7 +170,7 @@ class ClientBase:
             for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)  # test in ClientTest()
+        return methods.paginated_format(data, items)
 
     def _collective_paginated(self, limit = 375, next = None, prev = None):
         limit = min(limit, self.paginated_size)
@@ -218,7 +219,7 @@ class ClientBase:
             for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)  # test in ClientTest()
+        return methods.paginated_format(data, items)
 
     def _digests_paginated(self, limit = None, next = None, prev = None):
         data = methods.paginated_data(f"{self.api}/digest_groups",
@@ -316,12 +317,13 @@ class ClientBase:
             for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)  # test in ClientTest()
+        return methods.paginated_format(data, items)
 
     def _comments_paginated(self, limit = 30, next = None, prev = None):
         limit = self.paginated_size
-        data = methods.paginated_data(f"{self.api}/users/my/content_smiles",
-                                      "content",
+
+        data = methods.paginated_data(f"{self.api}/users/my/comments",
+                                      "comments",
                                       self.headers,
                                       limit = limit,
                                       prev = prev,
@@ -331,12 +333,12 @@ class ClientBase:
             objects.Comment(item["id"],
                             client = self,
                             data = item,
-                            post = data["cid"],
-                            root = data.get("root_comm_id"))
+                            post = item["cid"],
+                            root = item.get("root_comm_id"))
             for item in data["items"]
         ]
 
-        return methods.paginated_format(data, items)  # test in ClientTest()
+        return methods.paginated_format(data, items)
 
     def search_users(self, query):
         """
@@ -377,6 +379,16 @@ class ClientBase:
         """
         return methods.paginated_generator(self._search_chats_paginated, query)
 
+    def mark_features_read(self):
+        """
+        Mark featured feed as read (or viewed).
+        """
+        response = requests.put(f"{self.api}/reads/all",
+                                headers = self.headers)
+
+        if response.status_code != 200:
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+
     @property
     def notifications(self):
         """
@@ -387,7 +399,7 @@ class ClientBase:
         :rtype: generator<Notification>
         """
         return methods.paginated_generator(
-            self._notifications_paginated)  # test in ClientTest()
+            self._notifications_paginated)  # test with another account
 
     @property
     def reads(self):
@@ -399,7 +411,7 @@ class ClientBase:
         :rtype: generator<Post>
         """
         return methods.paginated_generator(
-            self._reads_paginaged)  # test in ClientTest()
+            self._reads_paginated)  # test with another account
 
     @property
     def viewed(self):
@@ -407,7 +419,7 @@ class ClientBase:
         Alias to Client.reads because ifunny's in-api name is dumb.
         You don't read a picture or video
         """
-        return self.reads  # test in ClientTest()
+        return self.reads  # test with another account
 
     @property
     def home(self):
@@ -418,8 +430,7 @@ class ClientBase:
         :returns: generator iterating the home feed
         :rtype: generator<Post>
         """
-        return methods.paginated_generator(
-            self._home_paginated)  # test in ClientTest()
+        return methods.paginated_generator(self._home_paginated)
 
     @property
     def collective(self):
@@ -457,8 +468,7 @@ class ClientBase:
         :returns: generator iterating posts that this client has smiled
         :rtype: generator<Post>
         """
-        return methods.paginated_generator(
-            self._smiles_paginated)  # test in ClientTest()
+        return methods.paginated_generator(self._smiles_paginated)
 
     @property
     def comments(self):
@@ -466,8 +476,7 @@ class ClientBase:
         :returns: generator iterating comments that this client has left
         :rtype: generator<Comment>
         """
-        return methods.paginated_generator(
-            self._comments_paginated)  # test in ClientTest()
+        return methods.paginated_generator(self._comments_paginated)
 
     @property
     def channels(self):
@@ -506,6 +515,51 @@ class ClientBase:
     @property
     def messenger_token(self):
         return None
+
+    @property
+    def counters(self):
+        """
+        :returns: ifunny unread counters
+        :rtype: dict
+        """
+        response = requests.get(f"{self.api}/counters", headers = self.headers)
+
+        if response.status_code != 200:
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+
+        return response.json().get("data")
+
+    @property
+    def unread_featured(self):
+        """
+        :returns: unread featured posts
+        :rtype: int
+        """
+        return self.counters.get("featured", 0)
+
+    @property
+    def unread_collective(self):
+        """
+        :returns: unread collective posts
+        :rtype: int
+        """
+        return self.counters.get("collective", 0)
+
+    @property
+    def unread_subscriptions(self):
+        """
+        :returns: unread subscriptions posts
+        :rtype: int
+        """
+        return self.counters.get("subscriptions", 0)
+
+    @property
+    def unread_news(self):
+        """
+        :returns: unread news posts
+        :rtype: int
+        """
+        return self.counters.get("news", 0)
 
 
 class ObjectMixin:

@@ -4,6 +4,10 @@
 - `ClientBase` now has `User-Agent` headers. I don't know why it didn't before
 - `Client.channels` was broken because of weird data, fixed it
 - `Client.digests` was broken because of weird nested data, fixed it
+- `Client._comments_paginated` was broken because of a wrong endpoint, fixed it
+- `Client._reads_paginaged` -> `Client._reads_paginated` typo fix
+- `Client.counters` exists with unread values.
+- `Client.unread_featured`, `Client.unread_collective`, `Client.unread_subscriptions`, and`Client.unread_news` exist with counter values
 - some typos fixed in the docs
 - some incorrect \_get\_prop calls fixed for some properties
 - non-chat things are (mostly) tested

@@ -30,11 +30,11 @@ class Client(objects._mixin.ClientBase):
     commands = {"help": commands.Defaults.help}
 
     def __init__(self,
-                 trace=False,
-                 threaded=True,
-                 prefix={""},
-                 paginated_size=25):
-        super().__init__(paginated_size=paginated_size)
+                 trace = False,
+                 threaded = True,
+                 prefix = {""},
+                 paginated_size = 25):
+        super().__init__(paginated_size = paginated_size)
         # command
         self.__prefix = None
         self.prefix = prefix
@@ -63,7 +63,7 @@ class Client(objects._mixin.ClientBase):
 
     # private methods
 
-    def _get_prop(self, key, default=None):
+    def _get_prop(self, key, default = None):
         if not self._object_data.get(key, None):
             self._update = True
 
@@ -82,14 +82,14 @@ class Client(objects._mixin.ClientBase):
         if self._update or self._object_data_payload is None:
             self._update = False
             self._object_data_payload = requests.get(
-                f"{self.api}/account", headers=self.headers).json(
+                f"{self.api}/account", headers = self.headers).json(
                 )["data"] if self.authenticated else {}
 
         return self._object_data_payload
 
     # public methods
 
-    def login(self, email, password, force=False):
+    def login(self, email, password, force = False):
         """
         Authenticate with iFunny to get an API token.
         Will try to load saved account tokens (saved as plaintext json, indexed by `email_token`) if `force` is False
@@ -113,7 +113,7 @@ class Client(objects._mixin.ClientBase):
         if not force and self._config.get(f"{email}_token"):
             self.__token = self._config[f"{email}_token"]
             response = requests.get(f"{self.api}/account",
-                                    headers=self.headers)
+                                    headers = self.headers)
 
             if response.status_code == 200:
                 self.authenticated = True
@@ -128,14 +128,14 @@ class Client(objects._mixin.ClientBase):
         }
 
         response = requests.post(f"{self.api}/oauth2/token",
-                                 headers=headers,
-                                 data=data)
+                                 headers = headers,
+                                 data = data)
 
         if response.status_code == 403:
             time.sleep(10)
             response = requests.post(f"{self.api}/oauth2/token",
-                                     headers=headers,
-                                     data=data)
+                                     headers = headers,
+                                     data = data)
 
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
@@ -174,17 +174,19 @@ class Client(objects._mixin.ClientBase):
 
     def post_image(self,
                    image_data,
-                   tags=[],
-                   visibility="public",
-                   wait=False,
-                   timeout=15,
-                   schedule=None):
+                   tags = [],
+                   visibility = "public",
+                   type = "pic",
+                   wait = False,
+                   timeout = 15,
+                   schedule = None):
         """
         Post an image to iFunny
 
         :param image_data: Binary image to post
         :param tags: List of searchable tags
         :param visibility: Visibility of the post on iFunny. Can be one of (``public``, ``subscribers``)
+        :param type: type of content to post. Can be one of (``pic``, ``gif``)
         :param wait: wait for the post to be successfuly published?
         :param timeout: time to wait for a successful post
         :param schedule: timestamp to schedule the post for, or None for immediate
@@ -192,6 +194,7 @@ class Client(objects._mixin.ClientBase):
         :type image_data: bytes
         :type tags: list<str>
         :type visibility: str
+        :type type: str
         :type wait: bool
         :type timeout: int
         :type schedule: int, or None
@@ -203,7 +206,7 @@ class Client(objects._mixin.ClientBase):
             raise ValueError(f"visibility cannot be {visibility}")
 
         data = {
-            "type": "pic",
+            "type": type,
             "tags": json.dumps(tags),
             "visibility": visibility
         }
@@ -214,9 +217,14 @@ class Client(objects._mixin.ClientBase):
         files = {"image": image_data}
 
         response = requests.post(f"{self.api}/content",
-                                 headers=self.headers,
-                                 data=data,
-                                 files=files)
+                                 headers = self.headers,
+                                 data = data,
+                                 files = files)
+
+        if response.status_code != 202:
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}"
+                                            )  # TODO: test for ratelimits?
+
         id = response.json()["data"]["id"]
         posted = None
 
@@ -224,11 +232,11 @@ class Client(objects._mixin.ClientBase):
             return
 
         while timeout * 2:
-            response = requests.get(f"{self.api}/tasks/{id}",
-                                    headers=self.headers).json()["data"]
+            posted = requests.get(f"{self.api}/tasks/{id}",
+                                  headers = self.headers).json()["data"]
 
-            if response.get("result"):
-                return objects.Post(response["result"]["cid"], self)
+            if posted.get("result"):
+                return objects.Post(posted["result"]["cid"], self)
 
             time.sleep(.5)
             timeout -= 1
@@ -247,17 +255,8 @@ class Client(objects._mixin.ClientBase):
         for prefix in self.prefix:
             if first.startswith(prefix):
                 return self.commands.get(first[len(prefix):],
-                                         commands.Defaults.default)(message,
-                                                                    args)
-
-    def mark_features_read(self):
-        """
-        Mark all features as read (or viewed).
-        """
-        response = requests.put(f"{self.api}/reads/all")
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+                                         commands.Defaults.default)(
+                                             message, args)  # test chat
 
     def suggested_tags(self, query):
         """
@@ -273,8 +272,8 @@ class Client(objects._mixin.ClientBase):
         params = {"q": str(query)}
 
         response = requests.get(f"{self.api}/tags/suggested",
-                                params=params,
-                                headers=self.headers)
+                                params = params,
+                                headers = self.headers)
 
         return [(item["tag"], item["uses"])
                 for item in response.json()["data"]["tags"]["items"]]
@@ -293,7 +292,7 @@ class Client(objects._mixin.ClientBase):
         if self.socket.active:
             raise exceptions.ChatAlreadyActive("Already started")
 
-        return self.socket.start()
+        return self.socket.start()  # test chat
 
     def stop_chat(self):
         """
@@ -302,7 +301,7 @@ class Client(objects._mixin.ClientBase):
         :returns: this client's socket object
         :rtype: Socket
         """
-        return self.socket.stop()
+        return self.socket.stop()  # test chat
 
     def sendbird_upload(self, chat, file_data):
         """
@@ -326,18 +325,18 @@ class Client(objects._mixin.ClientBase):
         }
 
         response = requests.post(f"{self.sendbird_api}/storage/file",
-                                 headers=self.sendbird_headers,
-                                 files=files,
-                                 data=data)
+                                 headers = self.sendbird_headers,
+                                 files = files,
+                                 data = data)
 
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return response.json()["url"]
+        return response.json()["url"]  # test chat
 
     # public decorators
 
-    def command(self, name=None):
+    def command(self, name = None):
         """
         Decorator to add a command, callable in chat with the format ``{prefix}{command}``
         Commands must take two arguments, which are set as the Message and list<str> of space-separated words in the message (excluding the command) respectively::
@@ -358,9 +357,9 @@ class Client(objects._mixin.ClientBase):
             _name = name if name else method.__name__
             self.commands[_name] = commands.Command(method, _name)
 
-        return _inner
+        return _inner  # test chat
 
-    def event(self, name=None):
+    def event(self, name = None):
         """
         Decorator to add an event, which is called when different things happen by the clients socket.
         Events must take one argument, which is a dict with the websocket data::
@@ -380,7 +379,7 @@ class Client(objects._mixin.ClientBase):
             _name = name if name else method.__name__
             self.handler.events[_name] = handler.Event(method, _name)
 
-        return _inner
+        return _inner  # test chat
 
     # public properties
 
@@ -436,7 +435,7 @@ class Client(objects._mixin.ClientBase):
 
         raise TypeError(
             f"prefix must be str, iterable, or callable resulting in either. Not {type(_pref)}"
-        )
+        )  # test chat
 
     @prefix.setter
     def prefix(self, value):
@@ -458,7 +457,7 @@ class Client(objects._mixin.ClientBase):
 
         raise TypeError(
             f"prefix must be str, iterable, or callable resulting in either. Not {type(_pref)}"
-        )
+        )  # test chat
 
     @property
     def messenger_token(self):
@@ -472,11 +471,11 @@ class Client(objects._mixin.ClientBase):
         if not self.__messenger_token:
             self.__messenger_token = self.fresh._get_prop("messenger_token")
 
-        return self.__messenger_token
+        return self.__messenger_token  ##
 
     @messenger_token.setter
     def messenger_token(self, value):
-        self.__messenger_token = value
+        self.__messenger_token = value  ##
 
     @property
     def unread_notifications(self):
@@ -515,8 +514,8 @@ class Client(objects._mixin.ClientBase):
         """
         if not self.__user:
             self.__user = objects.User(self.id,
-                                       client=self,
-                                       paginated_size=self.paginated_size)
+                                       client = self,
+                                       paginated_size = self.paginated_size)
 
         return self.__user
 
@@ -527,7 +526,8 @@ class Client(objects._mixin.ClientBase):
         :rtype: int
         """
         return requests.get(f"{self.api}/counters",
-                            headers=self.headers).json()["data"]["news"]
+                            headers = self.headers).json()["data"][
+                                "news"]  # test with another account
 
     @property
     def nick(self):
@@ -589,4 +589,4 @@ class Client(objects._mixin.ClientBase):
             raise exceptions.ChatNotActive(
                 "Chat must be started at least once to get a session key")
 
-        return methods.paginated_generator(self._chats_paginated)
+        return methods.paginated_generator(self._chats_paginated)  # test chat

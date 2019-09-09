@@ -112,6 +112,17 @@ class ClientBaseTest(unittest.TestCase):
         shutil.rmtree(mixin.ClientBase()._home_path, ignore_errors = True)
         assert os.path.isfile(mixin.ClientBase()._cache_path)
 
+    def test_unread_features(self):
+        assert mixin.ClientBase().unread_featured >= 0
+
+    def test_mark_features_read(self):
+        client = mixin.ClientBase()
+        client.mark_features_read()
+        assert client.unread_featured == 0
+
+    def test_unread_collective(self):
+        assert mixin.ClientBase().unread_collective > 0
+
     # search methods may misbehave, ifunny is on some sort of lockdown
 
     def test_search_users_paginated(self):
