@@ -5,7 +5,7 @@ python:
     - "3.8-dev"
 install:
     - python3 -m pip install .
-    - python3 -m pip install requirements/build.txt
+    - python3 -m pip install -r requirements/build.txt
 script: pytest test.py --cov-report term --cov=ifunny
 
 after_success:
