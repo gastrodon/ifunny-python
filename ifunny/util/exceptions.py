@@ -56,3 +56,18 @@ class MemberNotInChat(Exception):
 class Forbidden(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+
+class Unavailable(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class RateLimit(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class CaptchaFailed(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)

@@ -25,6 +25,8 @@ class User(mixin.ObjectMixin):
         super().__init__(*args, **kwargs)
         self._chat_url = None
         self._url = f"{self.client.api}/users/{self.id}"
+        self.__cover = None
+        self.__image = None
 
     def __repr__(self):
         return self.nick
@@ -84,6 +86,23 @@ class User(mixin.ObjectMixin):
 
         return methods.paginated_format(data, items)
 
+    def _bans_paginated(self):
+        data = methods.paginated_data(f"{self._url}/bans",
+                                      "bans",
+                                      self.headers,
+                                      limit = None,
+                                      prev = None,
+                                      next = None)
+
+        items = [
+            objects.Ban(item["id"],
+                        client = self.client,
+                        user = self,
+                        data = item) for item in data
+        ]
+
+        return items  # test login
+
     # actions
 
     @classmethod
@@ -125,7 +144,7 @@ class User(mixin.ObjectMixin):
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh  # test login
+        return self.fresh
 
     def unsubscribe(self):
         """
@@ -140,7 +159,7 @@ class User(mixin.ObjectMixin):
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return True  # test login
+        return self.fresh
 
     def block(self, type = "user"):
         """
@@ -151,7 +170,6 @@ class User(mixin.ObjectMixin):
         :type type: str
 
         :returns: self
-
         :rtype: User
         """
         valid = ["user", "installation"]
@@ -172,7 +190,7 @@ class User(mixin.ObjectMixin):
 
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh  # test login
+        return self.fresh
 
     def unblock(self):
         """
@@ -190,11 +208,11 @@ class User(mixin.ObjectMixin):
 
         if response.status_code != 200:
             if response.json().get("error") == "not_blocked":
-                return False
+                return self.fresh
 
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return True  # test login
+        return self.fresh
 
     def report(self, type):
         """
@@ -210,7 +228,6 @@ class User(mixin.ObjectMixin):
         :type type: str
 
         :returns: self
-
         :rtype: User
         """
         valid = ["hate", "nude", "spam", "target", "harm"]
@@ -228,7 +245,7 @@ class User(mixin.ObjectMixin):
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh  # test login
+        return self.fresh
 
     def subscribe_to_updates(self):
         """
@@ -244,7 +261,7 @@ class User(mixin.ObjectMixin):
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh  # test login
+        return self.fresh
 
     def unsubscribe_to_updates(self):
         """
@@ -260,11 +277,11 @@ class User(mixin.ObjectMixin):
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh  # test login
+        return self.fresh
 
     def set_nick(self, value):
         """
-        Change the nick of a User.
+        Change the nick of this User.
         This user must be you
 
         :param value: what to change the nick to
@@ -274,10 +291,48 @@ class User(mixin.ObjectMixin):
         :returns: self
         :rtype: User
         """
+        if not len(str(value)):
+            raise ValueError("Nickname cannot be empty")
+
         data = {
             "nick": str(value),
             "messaging_privacy_status": self.chat_privacy,
-            "is_private": 0
+            "is_private": int(self.is_private)
+        }
+
+        response = requests.put(f"{self.client.api}/account",
+                                data = data,
+                                headers = self.headers)
+
+        if response.status_code != 200:
+            error = response.json()["error"]
+            if error == "nickname_exists":
+                raise exceptions.Unavailable(
+                    f"nickname {value} is already taken")
+
+            if error == "invalid_nickname":
+                raise ValueError(f"nickname {value} is invalid")
+
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self.fresh
+
+    def set_private(self, value):
+        """
+        Change the privacy value of this User
+        This user must be you
+
+        :param value: set this user to private?
+
+        :type value: bool
+
+        :returns: self
+        :rtype: User
+        """
+        data = {
+            "nick": self.nick,
+            "messaging_privacy_status": self.chat_privacy,
+            "is_private": int(bool(value))
         }
 
         response = requests.put(f"{self.client.api}/account",
@@ -287,11 +342,11 @@ class User(mixin.ObjectMixin):
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return response  # test login
+        return self.fresh
 
     def set_about(self, value):
         """
-        Change the about of a User.
+        Change the about of this User.
         This user must be you
 
         :param value: what to change the about to
@@ -304,7 +359,7 @@ class User(mixin.ObjectMixin):
         data = {
             "about": str(value),
             "messaging_privacy_status": self.chat_privacy,
-            "is_private": 0
+            "is_private": int(self.is_private)
         }
 
         response = requests.put(f"{self.client.api}/account",
@@ -314,7 +369,7 @@ class User(mixin.ObjectMixin):
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return response  # test login
+        return self.fresh
 
     # public generators
 
@@ -345,9 +400,15 @@ class User(mixin.ObjectMixin):
         """
         return methods.paginated_generator(self._subscriptions_paginated)
 
+    # private properties
+
+    @property
+    def _rating_data(self):
+        return self._get_prop("rating")
+
     # public properties
 
-    # authentication independant attributes
+    # authentication independant properties
 
     @property
     def nick(self):
@@ -357,12 +418,13 @@ class User(mixin.ObjectMixin):
         """
         return self._get_prop("nick")
 
-    @nick.setter
-    def nick(self, value):
-        if self != self.client.user:
-            raise Forbidden("You cannot change the nick of another user")
-
-        self.set_nick(str(value))  # test login
+    @property
+    def original_nick(self):
+        """
+        :returns: this users original nickname, if available
+        :rtype: string
+        """
+        return self._get_prop("original_nick")
 
     @property
     def about(self):
@@ -371,13 +433,6 @@ class User(mixin.ObjectMixin):
         :rtype: str
         """
         return self._get_prop("about")
-
-    @about.setter
-    def about(self, value):
-        if self != self.client.user:
-            raise Forbidden("You cannot change the about of another user")
-
-        self.set_about(str(value))  # test login
 
     @property
     def total_posts(self):
@@ -475,7 +530,7 @@ class User(mixin.ObjectMixin):
         return self._get_prop("meme_experience")["rank"]
 
     @property
-    def nick_color(self):  # TODO: test me
+    def nick_color(self):
         """
         :returns: this users nickname color
         :rtype: str
@@ -491,11 +546,90 @@ class User(mixin.ObjectMixin):
         return self._get_prop("messaging_privacy_status")
 
     @property
+    def profile_image(self):
+        """
+        :returns: this accounts profile image, if any
+        :rtype: Image, or None
+        """
+        _data = self._get_prop("photo")
+
+        if any({not self.__image, self._update}):
+            self.__image = objects.Image(
+                _data.get("url"), _data.get("bg_color")) if _data else None
+
+        return self.__image
+
+    @property
+    def cover_image(self):
+        """
+        :returns: this accounts cover image, if any
+        :rtype: Image, or None
+        """
+        _data = self._get_prop("cover_url")
+
+        if any({not self.__cover, self._update}):
+            self.__cover = objects.Image(
+                _data, self._get_prop("cover_bg_color")) if _data else None
+
+        return self.__cover
+
+    @property
+    def is_private(self):
+        """
+        :returns: is this profile private?
+        :rtype: bool
+        """
+        return self._get_prop("is_private")
+
+    @property
+    def rating(self):
+        """
+        :returns: rating of this user with level data
+        :rtype: Rating
+        """
+        return objects.Rating(self,
+                              client = self.client,
+                              data = self._rating_data)
+
+    # authentication dependant properties
+
+    @is_private.setter
+    def is_private(self, value):
+        if self != self.client.user:
+            raise Forbidden("You cannot change the privacy of another user")
+
+        self.set_private(bool(value))
+
+    @nick.setter
+    def nick(self, value):
+        if self != self.client.user:
+            raise Forbidden("You cannot change the nick of another user")
+
+        self.set_nick(str(value))
+
+    @about.setter
+    def about(self, value):
+        if self != self.client.user:
+            raise Forbidden("You cannot change the about of another user")
+
+        self.set_about(str(value))
+
+    @property
+    def bans(self):
+        """
+        :returns: this users bans
+        :rtype: generator<Ban>
+        """
+        return (ban for ban in self._bans_paginated())  # test somehow?
+
+    @property
     def chat_url(self):
         """
         :returns: this users chat url, if ``user.can_chat``
         :rtype: str
         """
+        if not self.client.authenticated:
+            raise exceptions.Forbidden("Not available for guests")
         if not self.can_chat or self == self.client.user:
             return None
 
@@ -508,7 +642,7 @@ class User(mixin.ObjectMixin):
 
             self._chat_url = response.json()["data"].get("chatUrl")
 
-        return self._chat_url  # test login
+        return self._chat_url
 
     @property
     def chat(self):
@@ -516,36 +650,30 @@ class User(mixin.ObjectMixin):
         :returns: this users chat, if ``user.can_chat``
         :rtype: Chat
         """
+        if not self.client.authenticated:
+            raise exceptions.Forbidden("Not available for guests")
         if self.chat_url:
             return objects.Chat(self.chat_url, self.client)
 
-        return None  # test login
+        return None
 
     @property
-    def pic_url(self):
-        """
-        :returns: url to this accounts profile image, if any
-        :rtype: str, or None
-        """
-        _data = self._get_prop("photo")
-        return _data.get("url") if _data else None
-
-    # authentication dependant attributes
-
-    @property
-    def blocked(self):
+    def is_blocked(self):
         """
         :returns: is this user blocked by me?
         :rtype: bool
         """
-        return self._get_prop("is_blocked")  # test login
+        if not self.client.authenticated:
+            raise exceptions.Forbidden("Not available for guests")
+        return self._get_prop("is_blocked")
 
-    @blocked.setter
-    def blocked(self, value):
+    @is_blocked.setter
+    def is_blocked(self, value):
+
         if value:
             self.block()
         else:
-            self.unblock()  # test login
+            self.unblock()
 
     @property
     def blocking_me(self):
@@ -553,7 +681,9 @@ class User(mixin.ObjectMixin):
         :returns: is this user blocking me?
         :rtype: bool
         """
-        return self._get_prop("are_you_blocked")  # test login
+        if not self.client.authenticated:
+            raise exceptions.Forbidden("Not available for guests")
+        return self._get_prop("are_you_blocked")
 
     @property
     def can_chat(self):
@@ -561,15 +691,26 @@ class User(mixin.ObjectMixin):
         :returns: can I chat with this user?
         :rtype: bool
         """
-        return self._get_prop("is_available_for_chat", False)  # test login
+        if not self.client.authenticated:
+            raise exceptions.Forbidden("Not available for guests")
+        return self._get_prop("is_available_for_chat", False)
 
     @property
-    def subscribed_to_updates(self):
+    def is_updates_subscription(self):
         """
-        :returns: is this user subscribed to updates?
+        :returns: am I subscribed to updates from this user?
         :rtype: bool
         """
-        return self._get_prop("is_subscribed_to_updates", False)  # test login
+        if not self.client.authenticated:
+            raise exceptions.Forbidden("Not available for guests")
+        return self._get_prop("is_subscribed_to_updates", False)
+
+    @is_updates_subscription.setter
+    def is_updates_subscription(self, value):
+        if value:
+            self.subscribe_to_updates()
+        else:
+            self.unsubscribe_to_updates()
 
     @property
     def is_subscribed(self):
@@ -577,7 +718,9 @@ class User(mixin.ObjectMixin):
         :returns: is this user subscribed to me?
         :rtype: bool
         """
-        return self._get_prop("is_in_subscribers", False)  # test login
+        if not self.client.authenticated:
+            raise exceptions.Forbidden("Not available for guests")
+        return self._get_prop("is_in_subscribers", False)
 
     @property
     def is_subscription(self):
@@ -585,7 +728,16 @@ class User(mixin.ObjectMixin):
         :returns: am I subscribed to this user?
         :rtype: bool
         """
-        return self._get_prop("is_in_subscriptions", False)  # test login
+        if not self.client.authenticated:
+            raise exceptions.Forbidden("Not available for guests")
+        return self._get_prop("is_in_subscriptions", False)
+
+    @is_subscription.setter
+    def is_subscription(self, value):
+        if value:
+            self.subscribe()
+        else:
+            self.unsubscribe()
 
 
 class Post(mixin.ObjectMixin):
@@ -986,6 +1138,16 @@ class Post(mixin.ObjectMixin):
 
         return self  # test log in
 
+    def read(self):
+        """
+        Mark this meme as read
+
+        :returns: was this marked as read?
+        :rtype: bool
+        """
+        return requests.put(f"{self.api}/reads/{self.id}",
+                            headers = self.headers).status_code == 200
+
     # public generators
 
     @property
@@ -1016,7 +1178,7 @@ class Post(mixin.ObjectMixin):
 
     # public properties
 
-    # authentication independant attributes
+    # authentication independant properties
 
     @property
     def smile_count(self):
@@ -1250,7 +1412,7 @@ class Post(mixin.ObjectMixin):
         """
         return self._meta.get("caption_text")
 
-    # authentication dependant attributes
+    # authentication dependant properties
 
     @property
     def is_republished(self):

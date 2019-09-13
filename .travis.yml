@@ -3,5 +3,10 @@ dist: xenial
 python:
     - "3.7"
     - "3.8-dev"
-install: python3 -m pip install .
-script: python test.py
+install:
+    - python3 -m pip install .
+    - python3 -m pip install requirements/build.txt
+script: pytest test.py --cov-report term --cov=ifunny
+
+after_success:
+    - codecov

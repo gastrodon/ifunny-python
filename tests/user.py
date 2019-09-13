@@ -1,14 +1,10 @@
 import unittest
+import re
 from ifunny import objects
 
 
 class UserTest(unittest.TestCase):
     user = None
-
-    # stop when we find an error
-    def run(self, result = None):
-        if not result.errors:
-            super(UserTest, self).run(result)
 
     @classmethod
     def setUpClass(cls):
@@ -17,8 +13,11 @@ class UserTest(unittest.TestCase):
     def test_by_nick(self):
         uname = "kaffirtest"
         user = objects.User.by_nick(uname)
-        assert isinstance(user, objects.User)
         assert uname == user.nick.lower()
+
+    def test_timeline_paginated(self):
+        posts = self.user._timeline_paginated(limit = 1)
+        assert len(posts["items"]) == 1
 
     def test_timeline(self):
         post = next(self.user.timeline)
@@ -72,8 +71,23 @@ class UserTest(unittest.TestCase):
     def test_rank(self):
         assert isinstance(self.user.rank, str)
 
+    def test_nick_color(self):
+        regex = "[A-F0-9]{6}"
+        assert re.search(regex,
+                         self.user.nick_color).group() == self.user.nick_color
+
     def test_chat_privacy(self):
         assert self.user.chat_privacy == "public"
 
-    def test_pic_url(self):
-        assert isinstance(self.user.pic_url, str)
+    def test_cover_image(self):
+        assert isinstance(self.user.cover_image, objects.Image)
+
+    def test_profile_image(self):
+        assert isinstance(self.user.profile_image, objects.Image)
+
+    def test_is_private(self):
+        assert self.user.is_private == False
+
+
+if __name__ == '__main__':
+    unittest.main()

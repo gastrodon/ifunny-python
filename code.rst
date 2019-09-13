@@ -1,3 +1,35 @@
+ClientBase
+----------
+
+.. autoclass:: ifunny.objects._mixin.ClientBase
+    :members:
+    :undoc-members:
+    :exclude-members: api, sendbird_api, commands
+
+ObjectMixin
+-----------
+
+.. autoclass:: ifunny.objects._mixin.ObjectMixin
+    :members:
+    :undoc-members:
+    :exclude-members: api, sendbird_api, commands
+
+CommentMixin
+------------
+
+.. autoclass:: ifunny.objects._mixin.CommentMixin
+    :members:
+    :undoc-members:
+    :exclude-members: api, sendbird_api, commands
+
+SendbirdMixin
+-------------
+
+.. autoclass:: ifunny.objects._mixin.SendbirdMixin
+    :members:
+    :undoc-members:
+    :exclude-members: api, sendbird_api, commands
+
 Client
 ------
 
@@ -42,14 +74,14 @@ Comment
     :undoc-members:
 
 Chat
--------
+----
 
 .. autoclass:: ifunny.objects.Chat
     :members:
     :undoc-members:
 
 ChatUser
------------
+--------
 
 .. autoclass:: ifunny.objects.ChatUser
     :members:
@@ -63,8 +95,56 @@ Message
     :undoc-members:
 
 ChatInvite
----------------
+----------
 
 .. autoclass:: ifunny.objects.ChatInvite
+    :members:
+    :undoc-members:
+
+
+Image
+-----
+
+.. autoclass:: ifunny.objects.Image
+    :members:
+    :undoc-members:
+
+
+Rating
+------
+
+.. autoclass:: ifunny.objects.Rating
+    :members:
+    :undoc-members:
+
+
+Ban
+---
+
+.. autoclass:: ifunny.objects.Ban
+    :members:
+    :undoc-members:
+
+
+Achievement
+-----------
+
+.. autoclass:: ifunny.objects.Achievement
+    :members:
+    :undoc-members:
+
+
+Task
+----
+
+.. autoclass:: ifunny.objects._small.Task
+    :members:
+    :undoc-members:
+
+
+Season
+------
+
+.. autoclass:: ifunny.objects._small.Season
     :members:
     :undoc-members:

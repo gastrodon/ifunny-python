@@ -33,8 +33,10 @@ class Client(objects._mixin.ClientBase):
                  trace = False,
                  threaded = True,
                  prefix = {""},
-                 paginated_size = 25):
-        super().__init__(paginated_size = paginated_size)
+                 paginated_size = 25,
+                 captcha_api_key = None):
+        super().__init__(paginated_size = paginated_size,
+                         captcha_api_key = captcha_api_key)
         # command
         self.__prefix = None
         self.prefix = prefix
@@ -63,6 +65,76 @@ class Client(objects._mixin.ClientBase):
 
     # private methods
 
+    def _achievements_paginated(self, limit = None, next = None, prev = None):
+        limit = limit if limit else self.paginated_size
+
+        data = methods.paginated_data(f"{self.api}/users/my/achievements",
+                                      None,
+                                      self.headers,
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
+
+        items = [
+            objects.Achievement(item["id"], client = self, data = item)
+            for item in data["items"]
+        ]
+
+        return methods.paginated_format(data, items)
+
+    def _home_paginated(self, limit = None, next = None, prev = None):
+        limit = limit if limit else self.paginated_size
+        data = methods.paginated_data(f"{self.api}/timelines/home",
+                                      "content",
+                                      self.headers,
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
+
+        items = [
+            objects.Post(item["id"], client = self, data = item)
+            for item in data["items"]
+        ]
+
+        return methods.paginated_format(data, items)
+
+    def _smiles_paginated(self, limit = None, next = None, prev = None):
+        limit = limit if limit else self.paginated_size
+        data = methods.paginated_data(f"{self.api}/users/my/content_smiles",
+                                      "content",
+                                      self.headers,
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
+
+        items = [
+            objects.Post(item["id"], client = self, data = item)
+            for item in data["items"]
+        ]
+
+        return methods.paginated_format(data, items)
+
+    def _comments_paginated(self, limit = None, next = None, prev = None):
+        limit = limit if limit else self.paginated_size
+
+        data = methods.paginated_data(f"{self.api}/users/my/comments",
+                                      "comments",
+                                      self.headers,
+                                      limit = limit,
+                                      prev = prev,
+                                      next = next)
+
+        items = [
+            objects.Comment(item["id"],
+                            client = self,
+                            data = item,
+                            post = item["cid"],
+                            root = item.get("root_comm_id"))
+            for item in data["items"]
+        ]
+
+        return methods.paginated_format(data, items)
+
     def _get_prop(self, key, default = None):
         if not self._object_data.get(key, None):
             self._update = True
@@ -73,12 +145,6 @@ class Client(objects._mixin.ClientBase):
 
     @property
     def _object_data(self):
-        """
-        Get existing or request new account data
-
-        returns
-            dict
-        """
         if self._update or self._object_data_payload is None:
             self._update = False
             self._object_data_payload = requests.get(
@@ -146,6 +212,88 @@ class Client(objects._mixin.ClientBase):
 
         self._update_config()
         return self
+
+    def create_account(self,
+                       nick,
+                       email,
+                       password,
+                       email_notifications = False):
+        """
+        Create an ifunny account.
+        This method will try to bypass ifunny captchas, and try to look like a new device if need be.
+        The creation of this ``ClientBase`` or ``Client`` must have included a ``captcha_api_key``
+
+        :param nick: unique nick for this account
+        :param email: unique email for this account
+        :param password: unique password for this account, whith a min length of ``6`` and > 1 digit
+        :param email_notifications: allow ifunny email notifications?
+
+        :type nick: str
+        :type email: str
+        :type password: str
+        :type email_notifications: bool
+
+        :returns: the user that you just created. There may be a delay before being able to log in
+        :rtype: User
+        """
+
+        if not self.nick_is_available(nick):
+            raise exceptions.Unavailable(f"{nick} nick unavailable")
+
+        if not self.email_is_available(email):
+            raise exceptions.Unavailable(f"{email} email unavailable")
+
+        data = {
+            "reg_type": "pwd",
+            "nick": nick,
+            "email": email,
+            "password": password
+        }
+
+        response = requests.post(f"{self.api}/users",
+                                 data = data,
+                                 headers = self.headers)
+
+        if response.json().get("error") == "forbidden":
+            time.sleep(30)
+            response = requests.post(f"{self.api}/users",
+                                     data = data,
+                                     headers = self.headers)
+
+        if response.json().get("error") == "captcha_required":
+            url = response.json()["data"]["captcha_url"]
+            captcha = self._solve_captcha(url)
+
+            captcha_data = {"g-recaptcha-response": captcha}
+
+            if requests.post(url,
+                             headers = self.headers,
+                             data = captcha_data,
+                             allow_redirects = False).status_code != 302:
+                raise exceptions.CaptchaFailed(
+                    "Generating a captcha failed, try again after a while")
+
+            response = requests.post(f"{self.api}/users",
+                                     data = data,
+                                     headers = self.headers)
+
+        if response.json().get("error") == "unknown_error":
+            time.sleep(30)
+            self.new_basic_token
+            response = requests.post(f"{self.api}/users",
+                                     data = data,
+                                     headers = self.headers)
+
+        if response.status_code != 200:
+            if response.status_code == 429:
+                raise exceptions.RateLimit("Too many signup attempts")
+
+            if response.status_code == 403:
+                raise exceptions.Forbidden("May not sign up")
+
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+
+        return objects.User(response.json()["data"]["id"], client = self)
 
     def post_image_url(self, image_url, **kwargs):
         """
@@ -494,6 +642,33 @@ class Client(objects._mixin.ClientBase):
         return unread
 
     @property
+    def home(self):
+        """
+        generator for a client's subscriptions feed (home feed).
+        Each iteration will return the next home post, in decending order of date posted
+
+        :returns: generator iterating the home feed
+        :rtype: generator<Post>
+        """
+        return methods.paginated_generator(self._home_paginated)
+
+    @property
+    def smiles(self):
+        """
+        :returns: generator iterating posts that this client has smiled
+        :rtype: generator<Post>
+        """
+        return methods.paginated_generator(self._smiles_paginated)
+
+    @property
+    def comments(self):
+        """
+        :returns: generator iterating comments that this client has left
+        :rtype: generator<Comment>
+        """
+        return methods.paginated_generator(self._comments_paginated)
+
+    @property
     def next_req_id(self):
         """
         Generate a new (sequential) sendbird websocket req_id in a thread safe way
@@ -568,6 +743,14 @@ class Client(objects._mixin.ClientBase):
         return self
 
     # public generators
+
+    @property
+    def achievements(self):
+        """
+        :returns: generator iterating this clients achievements
+        :rtype: generator<Achievement>
+        """
+        return methods.paginated_generator(self._achievements_paginated)
 
     @property
     def timeline(self):

@@ -9,11 +9,6 @@ class ClientTest(unittest.TestCase):
     image_jpg = "https://safebooru.org//samples/2795/sample_6af4d9d8e79f9012a95b943626abd893ad306431.jpg"
     image_gif = "https://safebooru.org//images/2760/d2291266b9fabf3d6d5e822322b70eb2.gif"
 
-    # stop when we find an error
-    def run(self, result = None):
-        if not result.errors:
-            super(ClientTest, self).run(result)
-
     @classmethod
     def setUpClass(cls):
         cls.ts = int(time.time())
@@ -212,3 +207,7 @@ class ClientTest(unittest.TestCase):
             assert post.type == "gif"
         finally:
             post.delete()
+
+
+if __name__ == '__main__':
+    unittest.main()

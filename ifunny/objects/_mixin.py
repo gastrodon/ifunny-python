@@ -1,4 +1,4 @@
-import json, requests, threading, os
+import json, requests, threading, os, time
 
 from random import random
 from hashlib import sha1
@@ -10,19 +10,33 @@ from ifunny.util import methods, exceptions
 
 
 class ClientBase:
+    """
+    iFunny Client base class.
+    Also used standalone for some read-only actions that do not warrant a Client that may log in
+
+    :param paginated_size: default number of elemets to request for each paginated data call
+    :captcha_api_key: 2captcha api key to use for attempts at creating accounts
+
+    :type paginated_size: int
+    :type captcha_api_key: str
+    """
     api = "https://api.ifunny.mobi/v4"
     sendbird_api = "https://api-us-1.sendbird.com/v3"
-    _user_agent = "iFunny/5.38.1(1117733) Android/9 (OnePlus; ONEPLUS A6013; OnePlus)"
+    captcha_api = "https://2captcha.com"
+    _user_agent = "iFunny/5.42(1117792) Android/5.0.2 (samsung; SCH-R530U; samsung)"
     __client_id = "MsOIJ39Q28"
     __client_secret = "PTDc3H8a)Vi=UYap"
+    __google_code = "6LflIwgTAAAAAElWMFEVgr9zs2UpH0eiFsVN_KfF"
 
-    def __init__(self, paginated_size = 25):
+    def __init__(self, paginated_size = 25, captcha_api_key = None):
         # locks
         self._sendbird_lock = threading.Lock()
         self._config_lock = threading.Lock()
 
         # api info
+        self.captcha_api_key = captcha_api_key
         self.authenticated = False
+        self._new_basic = False
 
         # cache file
         self._home_path = f"{Path.home()}/.ifunnypy"
@@ -55,6 +69,50 @@ class ClientBase:
 
         self._config_lock.release()
 
+    def _solve_captcha(self, url, timeout = 64):
+        params = {
+            "key": self.captcha_api_key,
+            "googlekey": self.__google_code,
+            "pageurl": url,
+            "method": "userrecaptcha"
+        }
+
+        data = {"key": self.captcha_api_key, "json": 1}
+
+        id = requests.post(f"{self.captcha_api}/in.php",
+                           data = data,
+                           params = params).json()["request"]
+
+        params = {
+            "action": "get",
+            "id": id,
+            "json": 1,
+            "key": self.captcha_api_key
+        }
+
+        while timeout:
+            timeout -= 2
+            result = requests.get(f"{self.captcha_api}/res.php",
+                                  params = params).json()["request"]
+
+            if result != "CAPCHA_NOT_READY":
+                return result
+
+            time.sleep(2)
+
+        raise Exception("took too long solving")
+
+    @property
+    def new_basic_token(self):
+        """
+        Generate a new basic token, even if one is stored
+
+        :returns: Basic oauth2 token
+        :rtype: string
+        """
+        self._new_basic = True
+        return self.basic_token
+
     @property
     def basic_token(self):
         """
@@ -63,7 +121,7 @@ class ClientBase:
         :returns: Basic oauth2 token
         :rtype: str
         """
-        if self._config.get("login_token"):
+        if self._config.get("login_token") and not self._new_basic:
             return self._config["login_token"]
 
         hex_string = os.urandom(32).hex().upper()
@@ -84,15 +142,14 @@ class ClientBase:
 
         :returns: request-ready headers
         :rtype: dict
-        "User-Agent"    : self._user_agent,
         """
         return {
             "Authorization": f"Basic {self.basic_token}",
             "User-Agent": self._user_agent
         }
 
-    def _notifications_paginated(self, limit = 400, prev = None, next = None):
-        limit = min(limit, self.paginated_size)
+    def _notifications_paginated(self, limit = None, prev = None, next = None):
+        limit = limit if limit else self.paginated_size
         data = methods.paginated_data(f"{self.api}/news/my",
                                       "news",
                                       self.headers,
@@ -119,7 +176,7 @@ class ClientBase:
                          distinct_mode = "all",
                          member_state_filter = "all",
                          order = "latest_last_message"):
-        limit = min(limit, 100)
+        limit = limit if limit else self.paginated_size
 
         params = {
             "limit": limit,
@@ -156,8 +213,8 @@ class ClientBase:
             ]
         }  # test chat
 
-    def _reads_paginated(self, limit = 30, next = None, prev = None):
-        limit = self.paginated_size
+    def _reads_paginated(self, limit = None, next = None, prev = None):
+        limit = limit if limit else self.paginated_size
         data = methods.paginated_data(f"{self.api}/feeds/reads",
                                       "content",
                                       self.headers,
@@ -172,8 +229,8 @@ class ClientBase:
 
         return methods.paginated_format(data, items)
 
-    def _collective_paginated(self, limit = 375, next = None, prev = None):
-        limit = min(limit, self.paginated_size)
+    def _collective_paginated(self, limit = None, next = None, prev = None):
+        limit = limit if limit else self.paginated_size
         data = methods.paginated_data(f"{self.api}/feeds/collective",
                                       "content",
                                       self.headers,
@@ -189,25 +246,9 @@ class ClientBase:
 
         return methods.paginated_format(data, items)
 
-    def _featured_paginated(self, limit = 30, next = None, prev = None):
-        limit = min(limit, self.paginated_size)
+    def _featured_paginated(self, limit = None, next = None, prev = None):
+        limit = limit if limit else self.paginated_size
         data = methods.paginated_data(f"{self.api}/feeds/featured",
-                                      "content",
-                                      self.headers,
-                                      limit = limit,
-                                      prev = prev,
-                                      next = next)
-
-        items = [
-            objects.Post(item["id"], client = self, data = item)
-            for item in data["items"]
-        ]
-
-        return methods.paginated_format(data, items)
-
-    def _home_paginated(self, limit = 100, next = None, prev = None):
-        limit = min(limit, self.paginated_size)
-        data = methods.paginated_data(f"{self.api}/timelines/home",
                                       "content",
                                       self.headers,
                                       limit = limit,
@@ -245,7 +286,7 @@ class ClientBase:
                                limit = 30,
                                next = None,
                                prev = None):
-        limit = self.paginated_size
+        limit = limit if limit else self.paginated_size
         data = methods.paginated_data(f"{self.api}/search/content",
                                       "content",
                                       self.headers,
@@ -266,7 +307,7 @@ class ClientBase:
                                 limit = 50,
                                 next = None,
                                 prev = None):
-        limit = self.paginated_size
+        limit = limit if limit else self.paginated_size
         data = methods.paginated_data(f"{self.api}/search/users",
                                       "users",
                                       self.headers,
@@ -287,7 +328,7 @@ class ClientBase:
                                 limit = 20,
                                 next = None,
                                 prev = None):
-        limit = self.paginated_size
+        limit = limit if limit else self.paginated_size
         data = methods.paginated_data(f"{self.api}/search/chats/channels",
                                       "channels",
                                       self.headers,
@@ -298,43 +339,6 @@ class ClientBase:
 
         items = [
             objects.Chat(item["channel_url"], self, data = item)
-            for item in data["items"]
-        ]
-
-        return methods.paginated_format(data, items)
-
-    def _smiles_paginated(self, limit = 30, next = None, prev = None):
-        limit = self.paginated_size
-        data = methods.paginated_data(f"{self.api}/users/my/content_smiles",
-                                      "content",
-                                      self.headers,
-                                      limit = limit,
-                                      prev = prev,
-                                      next = next)
-
-        items = [
-            objects.Post(item["id"], client = self, data = item)
-            for item in data["items"]
-        ]
-
-        return methods.paginated_format(data, items)
-
-    def _comments_paginated(self, limit = 30, next = None, prev = None):
-        limit = self.paginated_size
-
-        data = methods.paginated_data(f"{self.api}/users/my/comments",
-                                      "comments",
-                                      self.headers,
-                                      limit = limit,
-                                      prev = prev,
-                                      next = next)
-
-        items = [
-            objects.Comment(item["id"],
-                            client = self,
-                            data = item,
-                            post = item["cid"],
-                            root = item.get("root_comm_id"))
             for item in data["items"]
         ]
 
@@ -389,6 +393,48 @@ class ClientBase:
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
+    def email_is_available(self, email):
+        """
+        Check email availability
+        :param email: email in question
+
+        :type email: str
+
+        :returns: is this email available?
+        :rtype: bool
+        """
+        params = {"email": email}
+
+        response = requests.get(f"{self.api}/users/emails_available",
+                                headers = self.headers,
+                                params = params)
+
+        if response.status_code != 200:
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+
+        return response.json()["data"]["available"]
+
+    def nick_is_available(self, nick):
+        """
+        Check nick availability
+        :param nick: nick in question
+
+        :type nick: str
+
+        :returns: is this nick available?
+        :rtype: bool
+        """
+        params = {"nick": nick}
+
+        response = requests.get(f"{self.api}/users/nicks_available",
+                                headers = self.headers,
+                                params = params)
+
+        if response.status_code != 200:
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+
+        return response.json()["data"]["available"]
+
     @property
     def notifications(self):
         """
@@ -422,17 +468,6 @@ class ClientBase:
         return self.reads  # test with another account
 
     @property
-    def home(self):
-        """
-        generator for a client's subscriptions feed (home feed).
-        Each iteration will return the next home post, in decending order of date posted
-
-        :returns: generator iterating the home feed
-        :rtype: generator<Post>
-        """
-        return methods.paginated_generator(self._home_paginated)
-
-    @property
     def collective(self):
         """
         generator for the collective feed.
@@ -461,22 +496,6 @@ class ClientBase:
         :rtype: generator<Digest>
         """
         return methods.paginated_generator(self._digests_paginated)
-
-    @property
-    def smiles(self):
-        """
-        :returns: generator iterating posts that this client has smiled
-        :rtype: generator<Post>
-        """
-        return methods.paginated_generator(self._smiles_paginated)
-
-    @property
-    def comments(self):
-        """
-        :returns: generator iterating comments that this client has left
-        :rtype: generator<Comment>
-        """
-        return methods.paginated_generator(self._comments_paginated)
 
     @property
     def channels(self):

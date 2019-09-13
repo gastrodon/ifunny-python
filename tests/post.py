@@ -8,11 +8,6 @@ class PostTest(unittest.TestCase):
     pinned = None
     posts = {}
 
-    # stop when we find an error
-    def run(self, result = None):
-        if not result.errors:
-            super(PostTest, self).run(result)
-
     @staticmethod
     def get_first_of(type, timeline):
         for post in timeline:
@@ -145,7 +140,7 @@ class PostTest(unittest.TestCase):
     def test_content_url(self):
         for post in self.posts.values():
             assert re.compile(
-                "http(s)*:\/\/img\.ifunny\.co\/((images)|(videos))\/[a-f0-9_]+"
+                "http(s)*://img.ifunny.co/((images)|(videos))/[a-f0-9_]+"
             ).match(post.content_url)
 
     def test_content(self):
@@ -159,3 +154,7 @@ class PostTest(unittest.TestCase):
     def test_meta(self):
         for post in self.posts.values():
             assert post._meta != {}
+
+
+if __name__ == '__main__':
+    unittest.main()

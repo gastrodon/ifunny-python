@@ -6,11 +6,6 @@ class DigestTest(unittest.TestCase):
     user = None
     digest = None
 
-    # stop when we find an error
-    def run(self, result = None):
-        if not result.errors:
-            super(DigestTest, self).run(result)
-
     @classmethod
     def setUpClass(cls):
         cls.user = objects._mixin.ClientBase()
@@ -46,3 +41,7 @@ class DigestTest(unittest.TestCase):
 
     def test_index_alias(self):
         assert self.digest.index == self.digest.index
+
+
+if __name__ == '__main__':
+    unittest.main()

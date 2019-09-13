@@ -6,11 +6,6 @@ class ChannelTest(unittest.TestCase):
     user = None
     channels = None
 
-    # stop when we find an error
-    def run(self, result = None):
-        if not result.errors:
-            super(ChannelTest, self).run(result)
-
     @classmethod
     def setUpClass(cls):
         cls.user = objects._mixin.ClientBase()
@@ -22,3 +17,7 @@ class ChannelTest(unittest.TestCase):
     def test_feed(self):
         for channel in self.channels:
             assert isinstance(next(channel.feed), objects.Post)
+
+
+if __name__ == '__main__':
+    unittest.main()
