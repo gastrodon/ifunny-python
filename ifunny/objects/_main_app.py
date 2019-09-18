@@ -535,7 +535,7 @@ class User(mixin.ObjectMixin):
         :returns: this users nickname color
         :rtype: str
         """
-        return self._get_prop("nick_color")
+        return self._get_prop("nick_color", "FFFFFF")
 
     @property
     def chat_privacy(self):

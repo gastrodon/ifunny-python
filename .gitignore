@@ -12,3 +12,4 @@ _templates
 
 test_auth.py
 val.py
+.pytest_cache

@@ -658,8 +658,7 @@ class ObjectMixin:
 
     @property
     def headers(self):
-        if self.client:
-            return self.client.headers
+        return self.client.headers
 
 
 class CommentMixin(ObjectMixin):
