@@ -551,9 +551,8 @@ class User(mixin.ObjectMixin):
         :returns: this accounts profile image, if any
         :rtype: Image, or None
         """
-        _data = self._get_prop("photo")
-
         if any({not self.__image, self._update}):
+            _data = self._get_prop("photo")
             self.__image = objects.Image(
                 _data.get("url"), _data.get("bg_color")) if _data else None
 
