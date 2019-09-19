@@ -19,10 +19,10 @@ class DigestTest(unittest.TestCase):
 
     def test_read(cls):
         assert isinstance(cls.digest.read(), objects.Digest)
-        assert cls.digest.unread_count == 0
+        assert cls.digest.fresh.unread_count == 0
 
     def test_feed(self):
-        assert isinstance(next(self.digest.feed), objects.Post)
+        assert isinstance(next(self.digest.fresh.feed), objects.Post)
 
     def test_title(self):
         assert isinstance(self.digest.title, str)

@@ -31,7 +31,7 @@
 - fixed bugs caused by sendbird vs ifunny api inconsistencies
 - reply comments can now return replies
 - `Comment.parent`, `Comment.children` and `Comment.siblings` generators for comments attached to others. These are not very fast
-- Fix a bug getting certain properties that are sourced from `foo._get_prop("num")` from partial payloads raising a KeyError
+- Fix a bug getting certain properties that are sourced from `foo.get("num")` from partial payloads raising a KeyError
 - Add a check for deleted objects in `ObjectMixin` and made behavior more consistent
 
 ### 0.7.0

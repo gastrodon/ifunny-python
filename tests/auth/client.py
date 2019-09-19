@@ -1,8 +1,9 @@
 import unittest, json, os, requests, re, time
-from ifunny import Client, objects
+from ifunny import Client, objects, ext
+from ifunny.util import exceptions
 
 
-class ClientTest(unittest.TestCase):
+class ClientAuthTest(unittest.TestCase):
     client = None
     ts = None
     image_png = "https://safebooru.org//images/2782/308d1f35ff658731d3ade7f5b49673a85f5a6dc9.png"
@@ -71,6 +72,9 @@ class ClientTest(unittest.TestCase):
 
         assert self.client.email == username
 
+    def test_nick(self):
+        assert self.client.nick == objects.User.by_nick("kaffirtest").nick
+
     def test_id(self):
         regex = "[a-f0-9]{24}"
         assert re.search(regex, self.client.id)
@@ -127,19 +131,51 @@ class ClientTest(unittest.TestCase):
             config = json.load(stream)
             username, password = config["username"], config["password"]
 
-        client.login(username, password)
+        client.login(username, password, force = True)
 
         assert client.user == objects.User.by_nick("kaffirtest")
 
-    def test_post_image_png(self):
+    def test_login_cached(self):
+        client = Client()
+
+        with open(
+                f"{os.path.dirname(os.path.realpath(__file__))}/test_auth.json"
+        ) as stream:
+            config = json.load(stream)
+            username = config["username"]
+
+        client.login(username)
+
+        assert client.user == objects.User.by_nick("kaffirtest")
+
+    def test_duplicate_login(self):
+        client = Client()
+
+        with open(
+                f"{os.path.dirname(os.path.realpath(__file__))}/test_auth.json"
+        ) as stream:
+            config = json.load(stream)
+            username, password = config["username"], config["password"]
+
+        with self.assertRaises(exceptions.AlreadyAuthenticated):
+            client.login(username, password).login(username, password)
+
+    def test_post_image(self):
         image = requests.get(self.image_png).content
         post = self.client.post_image(image, wait = True)
         timeline = self.client.user.timeline
-
         next(timeline)
 
         try:
             assert post == next(timeline)
+        finally:
+            post.delete()
+
+    def test_post_image_png(self):
+        image = requests.get(self.image_png).content
+        post = self.client.post_image(image, wait = True)
+
+        try:
             assert post.type == "pic"
         finally:
             post.delete()
@@ -147,12 +183,8 @@ class ClientTest(unittest.TestCase):
     def test_post_image_jpg(self):
         image = requests.get(self.image_jpg).content
         post = self.client.post_image(image, wait = True)
-        timeline = self.client.user.timeline
-
-        next(timeline)
 
         try:
-            assert post == next(timeline)
             assert post.type == "pic"
         finally:
             post.delete()
@@ -160,24 +192,26 @@ class ClientTest(unittest.TestCase):
     def test_post_gif(self):
         image = requests.get(self.image_gif).content
         post = self.client.post_image(image, wait = True, type = "gif")
-        timeline = self.client.user.timeline
 
+        try:
+            assert post.type == "gif"
+        finally:
+            post.delete()
+
+    def test_post_image_url(self):
+        post = self.client.post_image_url(self.image_png, wait = True)
+        timeline = self.client.user.timeline
         next(timeline)
 
         try:
-            assert post == next(timeline)
-            assert post.type == "gif"
+            assert next(timeline) == post
         finally:
             post.delete()
 
     def test_post_image_png_url(self):
         post = self.client.post_image_url(self.image_png, wait = True)
-        timeline = self.client.user.timeline
-
-        next(timeline)
 
         try:
-            assert post == next(timeline)
             assert post.type == "pic"
         finally:
             post.delete()
@@ -189,7 +223,6 @@ class ClientTest(unittest.TestCase):
         next(timeline)
 
         try:
-            assert post == next(timeline)
             assert post.type == "pic"
         finally:
             post.delete()
@@ -203,10 +236,59 @@ class ClientTest(unittest.TestCase):
         next(timeline)
 
         try:
-            assert post == next(timeline)
             assert post.type == "gif"
         finally:
             post.delete()
+
+    def test_post_image_bad_visibility(self):
+        image = requests.get(self.image_png).content
+
+        with self.assertRaises(ValueError):
+            self.client.post_image_url(self.image_png, visibility = "foobar")
+
+    def test_post_image_subscribers(self):
+        post = self.client.post_image_url(self.image_png,
+                                          wait = True,
+                                          visibility = "subscribers")
+
+        try:
+            assert post.visibility == "subscribers"
+        finally:
+            post.delete()
+
+    def test_post_image_tags(self):
+        post = self.client.post_image_url(self.image_png,
+                                          wait = True,
+                                          tags = ["foo", "bar"])
+
+        try:
+            assert post.tags == ["foo", "bar"]
+        finally:
+            post.delete()
+
+    def test_start_chat(self):
+        self.client.start_chat()
+
+        try:
+            assert self.client.socket.active == True
+        finally:
+            self.client.stop_chat()
+
+    def test_stop_chat(self):
+        self.client.start_chat()
+        self.client.stop_chat()
+
+        assert self.client.socket.active == False
+
+    def test_achievements_paginated(self):
+        assert isinstance(self.client._achievements_paginated()["items"][0],
+                          objects.Achievement)
+
+    def test_achievements(self):
+        assert isinstance(next(self.client.achievements), objects.Achievement)
+
+    def test_unread_notifications_count(self):
+        assert self.client.unread_notifications_count >= 0
 
 
 if __name__ == '__main__':

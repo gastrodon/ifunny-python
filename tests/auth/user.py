@@ -61,22 +61,33 @@ class UserAuthTest(unittest.TestCase):
         assert user.unsubscribe().is_subscription == False
 
     def test_block(self):
-        user = self.user
-        assert user.block().is_blocked == True
-        user.unblock()
+        assert self.user.block().is_blocked == True
+        self.user.unblock()
 
     def test_redundant_block(self):
         assert self.user.block().block().is_blocked == True
+        self.user.unblock()
 
     def test_unblock(self):
-        user = self.user
-        user.block()
-        assert user.unblock().is_blocked == False
+        self.user.block()
+        assert self.user.unblock().is_blocked == False
 
     def test_redundant_unblock(self):
-        user = self.user
-        user.block()
-        assert user.unblock().unblock().is_blocked == False
+        self.user.block()
+        assert self.user.unblock().unblock().is_blocked == False
+
+    def test_block_installation(self):
+        assert self.user.block("installation").is_blocked == True
+        self.user.unblock()
+
+    def test_redundant_block_installation(self):
+        assert self.user.block("installation").block(
+            "installation").is_blocked == True
+        self.user.unblock()
+
+    def test_block_invalid(self):
+        with self.assertRaises(ValueError):
+            self.user.block("foobar")
 
     def test_report_hate(self):
         assert isinstance(self.user.report("hate"), objects.User)

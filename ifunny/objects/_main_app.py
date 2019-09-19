@@ -175,7 +175,7 @@ class User(mixin.ObjectMixin):
         valid = ["user", "installation"]
 
         if type not in valid:
-            raise TypeError(f"type cannot be {type}")
+            raise ValueError(f"type cannot be {type}")
 
         params = {"type": type}
 
@@ -404,7 +404,7 @@ class User(mixin.ObjectMixin):
 
     @property
     def _rating_data(self):
-        return self._get_prop("rating")
+        return self.get("rating")
 
     # public properties
 
@@ -416,7 +416,7 @@ class User(mixin.ObjectMixin):
         :returns: this users nickname
         :rtype: str
         """
-        return self._get_prop("nick")
+        return self.get("nick")
 
     @property
     def original_nick(self):
@@ -424,7 +424,7 @@ class User(mixin.ObjectMixin):
         :returns: this users original nickname, if available
         :rtype: string
         """
-        return self._get_prop("original_nick")
+        return self.get("original_nick")
 
     @property
     def about(self):
@@ -432,7 +432,7 @@ class User(mixin.ObjectMixin):
         :returns: this users about section
         :rtype: str
         """
-        return self._get_prop("about")
+        return self.get("about")
 
     @property
     def total_posts(self):
@@ -440,10 +440,10 @@ class User(mixin.ObjectMixin):
         :returns: this users post count
         :rtype: int
         """
-        if self._get_prop("num").get("total_posts"):
-            return self._get_prop("num").get("total_posts")
-        else:
-            return self.fresh._get_prop("num").get("total_posts")
+        try:
+            return self.get("num")["total_posts"]
+        except KeyError:
+            return self.fresh.get("num").get("total_posts")
 
     @property
     def total_featured(self):
@@ -451,10 +451,10 @@ class User(mixin.ObjectMixin):
         :returns: this users feature count
         :rtype: int
         """
-        if self._get_prop("num").get("featured"):
-            return self._get_prop("num").get("featured")
-        else:
-            return self.fresh._get_prop("num").get("featured")
+        try:
+            return self.get("num")["featured"]
+        except KeyError:
+            return self.fresh.get("num").get("featured")
 
     @property
     def total_smiles(self):
@@ -462,10 +462,10 @@ class User(mixin.ObjectMixin):
         :returns: this users smile count
         :rtype: int
         """
-        if self._get_prop("num").get("total_smiles"):
-            return self._get_prop("num").get("total_smiles")
-        else:
-            return self.fresh._get_prop("num").get("total_smiles")
+        try:
+            return self.get("num")["total_smiles"]
+        except KeyError:
+            return self.fresh.get("num").get("total_smiles")
 
     @property
     def subscriber_count(self):
@@ -473,10 +473,7 @@ class User(mixin.ObjectMixin):
         :returns: this users subscriber count
         :rtype: int
         """
-        if self._get_prop("num").get("subscribers"):
-            return self._get_prop("num").get("subscribers")
-        else:
-            return self.fresh._get_prop("num").get("subscribers")
+        return self.get("num")["subscribers"]
 
     @property
     def subscription_count(self):
@@ -484,10 +481,7 @@ class User(mixin.ObjectMixin):
         :returns: this users subscruption count
         :rtype: int
         """
-        if self._get_prop("num").get("subscriptions"):
-            return self._get_prop("num").get("subscriptions")
-        else:
-            return self.fresh._get_prop("num").get("subscriptions")
+        return self.get("num")["subscriptions"]
 
     @property
     def is_verified(self):
@@ -495,7 +489,7 @@ class User(mixin.ObjectMixin):
         :returns: is this user verified?
         :rtype: bool
         """
-        return self._get_prop("is_verified")
+        return self.get("is_verified")
 
     @property
     def is_banned(self):
@@ -503,7 +497,7 @@ class User(mixin.ObjectMixin):
         :returns: is this user banned?
         :rtype: bool
         """
-        return self._get_prop("is_banned")
+        return self.get("is_banned")
 
     @property
     def is_deleted(self):
@@ -511,7 +505,7 @@ class User(mixin.ObjectMixin):
         :returns: is this user deleted?
         :rtype: bool
         """
-        return self._get_prop("is_deleted")
+        return self.get("is_deleted")
 
     @property
     def days(self):
@@ -519,7 +513,7 @@ class User(mixin.ObjectMixin):
         :returns: this users active days count
         :rtype: int
         """
-        return self._get_prop("meme_experience")["days"]
+        return self.get("meme_experience")["days"]
 
     @property
     def rank(self):
@@ -527,7 +521,7 @@ class User(mixin.ObjectMixin):
         :returns: this users meme experience rank
         :rtype: str
         """
-        return self._get_prop("meme_experience")["rank"]
+        return self.get("meme_experience")["rank"]
 
     @property
     def nick_color(self):
@@ -535,7 +529,7 @@ class User(mixin.ObjectMixin):
         :returns: this users nickname color
         :rtype: str
         """
-        return self._get_prop("nick_color", "FFFFFF")
+        return self.get("nick_color", "FFFFFF")
 
     @property
     def chat_privacy(self):
@@ -543,7 +537,7 @@ class User(mixin.ObjectMixin):
         :returns: this users chat privacy settings (privacy, public, subscribers)
         :rtype: str
         """
-        return self._get_prop("messaging_privacy_status")
+        return self.get("messaging_privacy_status")
 
     @property
     def profile_image(self):
@@ -552,7 +546,7 @@ class User(mixin.ObjectMixin):
         :rtype: Image, or None
         """
         if any({not self.__image, self._update}):
-            _data = self._get_prop("photo")
+            _data = self.get("photo")
             self.__image = objects.Image(
                 _data.get("url"), _data.get("bg_color")) if _data else None
 
@@ -564,11 +558,11 @@ class User(mixin.ObjectMixin):
         :returns: this accounts cover image, if any
         :rtype: Image, or None
         """
-        _data = self._get_prop("cover_url")
 
         if any({not self.__cover, self._update}):
+            _data = self.get("cover_url")
             self.__cover = objects.Image(
-                _data, self._get_prop("cover_bg_color")) if _data else None
+                _data, self.get("cover_bg_color")) if _data else None
 
         return self.__cover
 
@@ -578,7 +572,7 @@ class User(mixin.ObjectMixin):
         :returns: is this profile private?
         :rtype: bool
         """
-        return self._get_prop("is_private")
+        return self.get("is_private")
 
     @property
     def rating(self):
@@ -664,7 +658,7 @@ class User(mixin.ObjectMixin):
         """
         if not self.client.authenticated:
             raise exceptions.Forbidden("Not available for guests")
-        return self._get_prop("is_blocked")
+        return self.get("is_blocked")
 
     @is_blocked.setter
     def is_blocked(self, value):
@@ -682,7 +676,7 @@ class User(mixin.ObjectMixin):
         """
         if not self.client.authenticated:
             raise exceptions.Forbidden("Not available for guests")
-        return self._get_prop("are_you_blocked")
+        return self.get("are_you_blocked")
 
     @property
     def can_chat(self):
@@ -692,7 +686,7 @@ class User(mixin.ObjectMixin):
         """
         if not self.client.authenticated:
             raise exceptions.Forbidden("Not available for guests")
-        return self._get_prop("is_available_for_chat", False)
+        return self.get("is_available_for_chat", False)
 
     @property
     def is_updates_subscription(self):
@@ -702,7 +696,7 @@ class User(mixin.ObjectMixin):
         """
         if not self.client.authenticated:
             raise exceptions.Forbidden("Not available for guests")
-        return self._get_prop("is_subscribed_to_updates", False)
+        return self.get("is_subscribed_to_updates", False)
 
     @is_updates_subscription.setter
     def is_updates_subscription(self, value):
@@ -719,7 +713,7 @@ class User(mixin.ObjectMixin):
         """
         if not self.client.authenticated:
             raise exceptions.Forbidden("Not available for guests")
-        return self._get_prop("is_in_subscribers", False)
+        return self.get("is_in_subscribers", False)
 
     @property
     def is_subscription(self):
@@ -729,7 +723,7 @@ class User(mixin.ObjectMixin):
         """
         if not self.client.authenticated:
             raise exceptions.Forbidden("Not available for guests")
-        return self._get_prop("is_in_subscriptions", False)
+        return self.get("is_in_subscriptions", False)
 
     @is_subscription.setter
     def is_subscription(self, value):
@@ -1173,7 +1167,7 @@ class Post(mixin.ObjectMixin):
     def _meta(self):
         type = self.type
         type = type.replace("gif_caption", "gif")
-        return self._get_prop(type, {})
+        return self.get(type, {})
 
     # public properties
 
@@ -1185,10 +1179,10 @@ class Post(mixin.ObjectMixin):
         :returns: post's smile count
         :rtype: int
         """
-        if self._get_prop("num").get("smiles"):
-            return self._get_prop("num").get("smiles")
+        if self.get("num").get("smiles"):
+            return self.get("num").get("smiles")
         else:
-            return self.fresh._get_prop("num").get("smiles")
+            return self.fresh.get("num").get("smiles")
 
     @property
     def unsmile_count(self):
@@ -1196,10 +1190,10 @@ class Post(mixin.ObjectMixin):
         :returns: post's unsmile count
         :rtype: int
         """
-        if self._get_prop("num").get("unsmiles"):
-            return self._get_prop("num").get("unsmiles")
+        if self.get("num").get("unsmiles"):
+            return self.get("num").get("unsmiles")
         else:
-            return self.fresh._get_prop("num").get("unsmiles")
+            return self.fresh.get("num").get("unsmiles")
 
     @property
     def guest_smile_count(self):
@@ -1207,10 +1201,10 @@ class Post(mixin.ObjectMixin):
         :returns: post's smile count by guests
         :rtype: int
         """
-        if self._get_prop("num").get("guest_smiles"):
-            return self._get_prop("num").get("guest_smiles")
+        if self.get("num").get("guest_smiles"):
+            return self.get("num").get("guest_smiles")
         else:
-            return self.fresh._get_prop("num").get("guest_smiles")
+            return self.fresh.get("num").get("guest_smiles")
 
     @property
     def comment_count(self):
@@ -1218,10 +1212,10 @@ class Post(mixin.ObjectMixin):
         :returns: post's comment count
         :rtype: int
         """
-        if self._get_prop("num").get("comments"):
-            return self._get_prop("num").get("comments")
+        if self.get("num").get("comments"):
+            return self.get("num").get("comments")
         else:
-            return self.fresh._get_prop("num").get("comments")
+            return self.fresh.get("num").get("comments")
 
     @property
     def view_count(self):
@@ -1229,10 +1223,10 @@ class Post(mixin.ObjectMixin):
         :returns: post's view count
         :rtype: int
         """
-        if self._get_prop("num").get("views"):
-            return self._get_prop("num").get("views")
+        if self.get("num").get("views"):
+            return self.get("num").get("views")
         else:
-            return self.fresh._get_prop("num").get("views")
+            return self.fresh.get("num").get("views")
 
     @property
     def republication_count(self):
@@ -1240,10 +1234,10 @@ class Post(mixin.ObjectMixin):
         :returns: post's republication count
         :rtype: int
         """
-        if self._get_prop("num").get("republished"):
-            return self._get_prop("num").get("republished")
+        if self.get("num").get("republished"):
+            return self.get("num").get("republished")
         else:
-            return self.fresh._get_prop("num").get("republished")
+            return self.fresh.get("num").get("republished")
 
     @property
     def share_count(self):
@@ -1251,10 +1245,10 @@ class Post(mixin.ObjectMixin):
         :returns: post's share count
         :rtype: int
         """
-        if self._get_prop("num").get("shares"):
-            return self._get_prop("num").get("shares")
+        if self.get("num").get("shares"):
+            return self.get("num").get("shares")
         else:
-            return self.fresh._get_prop("num").get("shares")
+            return self.fresh.get("num").get("shares")
 
     @property
     def author(self):
@@ -1262,7 +1256,7 @@ class Post(mixin.ObjectMixin):
         :returns: post's author
         :rtype: User
         """
-        data = self._get_prop("creator")
+        data = self.get("creator")
         return User(data["id"], client = self.client, data = data)
 
     @property
@@ -1271,7 +1265,7 @@ class Post(mixin.ObjectMixin):
         :returns: post's instance on it's original account, if a republication
         :rtype: Post
         """
-        _data = self._get_prop("source")
+        _data = self.get("source")
 
         if not _data:
             return None
@@ -1292,7 +1286,7 @@ class Post(mixin.ObjectMixin):
         :returns: has this post been featured?
         :rtype: bool
         """
-        return self._get_prop("is_featured")
+        return self.get("is_featured")
 
     @property
     def is_pinned(self):
@@ -1300,7 +1294,7 @@ class Post(mixin.ObjectMixin):
         :returns: is this post pinned on it's authors profile?
         :rtype: bool
         """
-        return self._get_prop("is_pinned")
+        return self.get("is_pinned")
 
     @is_pinned.setter
     def is_pinned(self, value):
@@ -1315,7 +1309,7 @@ class Post(mixin.ObjectMixin):
         :returns: was this post removed by moderators?
         :rtype: bool
         """
-        return self._get_prop("is_abused")
+        return self.get("is_abused")
 
     @property
     def type(self):
@@ -1323,7 +1317,7 @@ class Post(mixin.ObjectMixin):
         :returns: content ype of a post
         :rtype: str
         """
-        return self._get_prop("type")
+        return self.get("type")
 
     @property
     def tags(self):
@@ -1331,7 +1325,7 @@ class Post(mixin.ObjectMixin):
         :returns: the tags of a post
         :rtype: list<str>
         """
-        return self._get_prop("tags")
+        return self.get("tags")
 
     @tags.setter
     def tags(self, value):
@@ -1349,7 +1343,7 @@ class Post(mixin.ObjectMixin):
         :returns: the visibility of a post
         :rtype: str (public, subscribers, ect)
         """
-        return self._get_prop("visibility")
+        return self.get("visibility")
 
     @visibility.setter
     def visibility(self, value):
@@ -1361,7 +1355,7 @@ class Post(mixin.ObjectMixin):
         :returns: the publicication state of the post
         :rtype: str (published, ect)
         """
-        return self._get_prop("state")
+        return self.get("state")
 
     @property
     def boostable(self):
@@ -1369,7 +1363,7 @@ class Post(mixin.ObjectMixin):
         :returns: can this post be boosted?
         :rtype: bool
         """
-        return self._get_prop("can_be_boosted")
+        return self.get("can_be_boosted")
 
     @property
     def created_at(self):
@@ -1377,7 +1371,7 @@ class Post(mixin.ObjectMixin):
         :returns: creation date timestamp
         :rtype: int
         """
-        return self._get_prop("date_create")
+        return self.get("date_create")
 
     @property
     def published_at(self):
@@ -1385,7 +1379,7 @@ class Post(mixin.ObjectMixin):
         :returns: creation date timestamp
         :rtype: int
         """
-        return self._get_prop("published_at")
+        return self.get("published_at")
 
     @property
     def content_url(self):
@@ -1393,7 +1387,7 @@ class Post(mixin.ObjectMixin):
         :returns: url pointing to the full sized image
         :rtype: str
         """
-        return self._get_prop("url")
+        return self.get("url")
 
     @property
     def content(self):
@@ -1419,7 +1413,7 @@ class Post(mixin.ObjectMixin):
         :returns: is this post a republication?
         :rtype: bool
         """
-        return self._get_prop("is_republished")  # test log in
+        return self.get("is_republished")  # test log in
 
     @is_republished.setter
     def is_republished(self, value):
@@ -1434,7 +1428,7 @@ class Post(mixin.ObjectMixin):
         :returns: did I smile this post?
         :rtype: bool
         """
-        return self._get_prop("is_smiled")  # test log in
+        return self.get("is_smiled")  # test log in
 
     @is_smiled.setter
     def is_smiled(self, value):
@@ -1449,7 +1443,7 @@ class Post(mixin.ObjectMixin):
         :returns: did I unsmile this post?
         :rtype: bool
         """
-        return self._get_prop("is_unsmiled")  # test log in
+        return self.get("is_unsmiled")  # test log in
 
     @is_unsmiled.setter
     def is_unsmiled(self, value):
@@ -1698,7 +1692,7 @@ class Comment(mixin.CommentMixin):
                 yield x
         else:
             for _comment in self.root.replies:
-                if _comment.depth > self.depth and _comment._get_prop(
+                if _comment.depth > self.depth and _comment.get(
                         "parent_comm_id") == self.id:
                     yield _comment
 
@@ -1733,7 +1727,7 @@ class Comment(mixin.CommentMixin):
         :returns: the text content of a comment
         :rtype: str
         """
-        value = self._get_prop("text")
+        value = self.get("text")
         return value if value else ""
 
     @property
@@ -1749,7 +1743,7 @@ class Comment(mixin.CommentMixin):
             return self._post.id
 
         if not self.__cid:
-            self.__cid = self._get_prop("cid")
+            self.__cid = self.get("cid")
 
         return self.__cid
 
@@ -1759,7 +1753,7 @@ class Comment(mixin.CommentMixin):
         :returns: the state of the comment. Top comments are state top, and all others are state normal
         :rtype: str (top, normal)
         """
-        return self._get_prop("state")
+        return self.get("state")
 
     @property
     def author(self):
@@ -1767,7 +1761,7 @@ class Comment(mixin.CommentMixin):
         :returns: the comment author
         :rtype: Use
         """
-        data = self._get_prop("user")
+        data = self.get("user")
         return User(data["id"], client = self.client, data = data)
 
     @property
@@ -1787,10 +1781,10 @@ class Comment(mixin.CommentMixin):
         if self.is_root:
             return None
 
-        return Comment(self._get_prop("parent_comm_id"),
+        return Comment(self.get("parent_comm_id"),
                        client = self.client,
                        post = self.cid,
-                       root = self._get_prop("root_comm_id") if self.depth -
+                       root = self.get("root_comm_id") if self.depth -
                        1 else None)  ##
 
     @property
@@ -1802,7 +1796,7 @@ class Comment(mixin.CommentMixin):
         if self.is_root:
             return self
 
-        return Comment(self._get_prop("root_comm_id"),
+        return Comment(self.get("root_comm_id"),
                        client = self.client,
                        post = self.cid)  ##
 
@@ -1812,10 +1806,10 @@ class Comment(mixin.CommentMixin):
         :returns: number of smiles on this comment
         :rtype: int
         """
-        if self._get_prop("num").get("smiles"):
-            return self._get_prop("num").get("smiles")
+        if self.get("num").get("smiles"):
+            return self.get("num").get("smiles")
         else:
-            return self.fresh._get_prop("num").get("smiles")
+            return self.fresh.get("num").get("smiles")
 
     @property
     def unsmile_count(self):
@@ -1823,10 +1817,10 @@ class Comment(mixin.CommentMixin):
         :returns: number of unsmiles on this comment
         :rtype: int
         """
-        if self._get_prop("num").get("unsmiles"):
-            return self._get_prop("num").get("unsmiles")
+        if self.get("num").get("unsmiles"):
+            return self.get("num").get("unsmiles")
         else:
-            return self.fresh._get_prop("num").get("unsmiles")
+            return self.fresh.get("num").get("unsmiles")
 
     @property
     def reply_count(self):
@@ -1834,10 +1828,10 @@ class Comment(mixin.CommentMixin):
         :returns: number of replies on this comment
         :rtype: int
         """
-        if self._get_prop("num").get("replies"):
-            return self._get_prop("num").get("replies")
+        if self.get("num").get("replies"):
+            return self.get("num").get("replies")
         else:
-            return self.fresh._get_prop("num").get("replies")
+            return self.fresh.get("num").get("replies")
 
     @property
     def created_at(self):
@@ -1845,7 +1839,7 @@ class Comment(mixin.CommentMixin):
         :returns: creation date timestamp
         :rtype: int
         """
-        self._get_prop("date")  # test log in
+        self.get("date")  # test log in
 
     @property
     def depth(self):
@@ -1856,7 +1850,7 @@ class Comment(mixin.CommentMixin):
         if self.is_root:
             return 0
 
-        return self._get_prop("depth")  ##
+        return self.get("depth")  ##
 
     @property
     def is_root(self):
@@ -1864,7 +1858,7 @@ class Comment(mixin.CommentMixin):
         :returns: is this comment a top level (root) comment?
         :rtype: bool
         """
-        return not self._get_prop("is_reply")
+        return not self.get("is_reply")
 
     @property
     def is_deleted(self):
@@ -1872,7 +1866,7 @@ class Comment(mixin.CommentMixin):
         :returns: has this comment been deleted?
         :rtype: bool
         """
-        return self._get_prop("is_deleted", default = False)  # test log in
+        return self.get("is_deleted", default = False)  # test log in
 
     @property
     def is_edited(self):
@@ -1880,7 +1874,7 @@ class Comment(mixin.CommentMixin):
         :returns: has this comment been deleted?
         :rtype: bool
         """
-        return self._get_prop("is_edited")
+        return self.get("is_edited")
 
     @property
     def attached_post(self):
@@ -1888,7 +1882,7 @@ class Comment(mixin.CommentMixin):
         :returns: the attached post, if any
         :rtype: Post, or None
         """
-        data = self._get_prop("attachments")["content"]
+        data = self.get("attachments")["content"]
 
         if len(data) == 0:
             return None
@@ -1901,7 +1895,7 @@ class Comment(mixin.CommentMixin):
         :returns: a list of mentioned users, if any
         :rtype: list<User>
         """
-        data = self._get_prop("attachments")["mention_user"]
+        data = self.get("attachments")["mention_user"]
 
         if len(data) == 0:
             return []
@@ -1916,7 +1910,7 @@ class Comment(mixin.CommentMixin):
         :returns: did I smile this comment?
         :rtype: bool
         """
-        return self._get_prop("is_smiled")  # test log in
+        return self.get("is_smiled")  # test log in
 
     @property
     def is_unsmiled(self):
@@ -1924,7 +1918,7 @@ class Comment(mixin.CommentMixin):
         :returns: did I unsmile this comment?
         :rtype: bool
         """
-        return self._get_prop("is_unsmiled")  # test log in
+        return self.get("is_unsmiled")  # test log in
 
 
 class Notification:
@@ -2032,7 +2026,7 @@ class Channel(mixin.ObjectMixin):
         super().__init__(id, client = client, data = data)
         self._feed_url = f"{self.client.api}/channels/{self.id}/items"
 
-    def _get_prop(self, key, default = None):
+    def get(self, key, default = None):
         # TODO: surely we can get updated information from somewhere?
         return self._object_data_payload.get(key, default)
 
@@ -2152,7 +2146,7 @@ class Digest(mixin.ObjectMixin):
         """
         self._contents = True
 
-        for data in self._get_prop("items"):
+        for data in self.get("items"):
             yield Post(data["id"], client = self.client, data = data)
 
     @property
@@ -2163,7 +2157,7 @@ class Digest(mixin.ObjectMixin):
         """
         self._comments = True
 
-        for data in self._get_prop("subscription_comments"):
+        for data in self.get("subscription_comments"):
             post = Post(data["contentId"], client = self.client)
             root = Comment(data["rootCommentId"],
                            client = self.client,
@@ -2177,7 +2171,7 @@ class Digest(mixin.ObjectMixin):
         :returns: the title of this digest
         :rtype: str
         """
-        return self._get_prop("title")
+        return self.get("title")
 
     @property
     def smile_count(self):
@@ -2185,7 +2179,7 @@ class Digest(mixin.ObjectMixin):
         :returns: number of smiles in this digest
         :rtype: int
         """
-        return self._get_prop("likes")
+        return self.get("likes")
 
     @property
     def total_smiles(self):
@@ -2201,7 +2195,7 @@ class Digest(mixin.ObjectMixin):
         :returns: number of comments in this digest
         :rtype: int
         """
-        return self._get_prop("comments")
+        return self.get("comments")
 
     @property
     def post_count(self):
@@ -2209,7 +2203,7 @@ class Digest(mixin.ObjectMixin):
         :returns: number of posts in this digest
         :rtype: int
         """
-        return self._get_prop("item_count")
+        return self.get("item_count")
 
     @property
     def unread_count(self):
@@ -2217,7 +2211,7 @@ class Digest(mixin.ObjectMixin):
         :returns: number of unread posts in this digest
         :rtype: int
         """
-        return self._get_prop("unreads")  ##
+        return self.get("unreads")  ##
 
     @property
     def count(self):
@@ -2225,7 +2219,7 @@ class Digest(mixin.ObjectMixin):
         :returns: index of this digest
         :rtype: int
         """
-        return self._get_prop("count")
+        return self.get("count")
 
     @property
     def index(self):

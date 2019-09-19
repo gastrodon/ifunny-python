@@ -46,12 +46,15 @@ class Rating:
         self._object_data_payload = data
         self._update = False
 
-    def _get_prop(self, key, default = None):
+    def get(self, key, default = None):
         try:
             return self._object_data[key]
 
         except KeyError:
             return self.fresh._object_data.get(key, default)
+
+    def __repr__(self):
+        return str(self.level)
 
     @property
     def _object_data(self):
@@ -71,15 +74,15 @@ class Rating:
 
     @property
     def _current(self):
-        return self._get_prop("current_level")
+        return self.get("current_level", {})
 
     @property
     def _next(self):
-        return self._get_prop("next_level")
+        return self.get("next_level", {})
 
     @property
     def _max(self):
-        return self._get_prop("max_level")
+        return self.get("max_level", {})
 
     @property
     def points(self):
@@ -87,7 +90,7 @@ class Rating:
         :returns: the points of this user
         :rtype: int
         """
-        return self._get_prop("points")
+        return self.get("points")
 
     @property
     def visible(self):
@@ -95,7 +98,7 @@ class Rating:
         :returns: is the level of this user visible?
         :rtype: bool
         """
-        return self._get_prop("is_show_level")
+        return self.get("is_show_level")
 
     @property
     def level(self):
@@ -164,7 +167,7 @@ class Ban(mixin.ObjectMixin):
         key = self.user.id if self.user.id else "my"
         self._url = f"{self.api}/users/{key}/bans/{self.id}"
 
-    def _get_prop(self, key, default = None):
+    def get(self, key, default = None):
         if not self._object_data["ban"].get(key, None):
             self._update = True
 
@@ -176,7 +179,7 @@ class Ban(mixin.ObjectMixin):
         :returns: reason for this ban
         :rtype: str
         """
-        return self._get_prop("ban_reason")
+        return self.get("ban_reason")
 
     @property
     def created_at(self):
@@ -184,7 +187,7 @@ class Ban(mixin.ObjectMixin):
         :returns: timestamp of when this ban was created
         :rtype: int
         """
-        return self._get_prop("created_at")
+        return self.get("created_at")
 
     @property
     def expires_at(self):
@@ -192,7 +195,7 @@ class Ban(mixin.ObjectMixin):
         :returns: timestamp of when this ban expires
         :rtype: int
         """
-        return self._get_prop("date_until")
+        return self.get("date_until")
 
     @property
     def type(self):
@@ -200,7 +203,7 @@ class Ban(mixin.ObjectMixin):
         :returns: type of ban
         :rtype: str
         """
-        return self._get_prop("type")
+        return self.get("type")
 
     @property
     def index(self):
@@ -208,7 +211,7 @@ class Ban(mixin.ObjectMixin):
         :returns: ban index relative to other bans (starting at 1)
         :rtype: int
         """
-        return self._get_prop("pid")
+        return self.get("pid")
 
     @property
     def is_appealed(self):
@@ -216,7 +219,7 @@ class Ban(mixin.ObjectMixin):
         :returns: has this ban been appealed?
         :rtype: bool
         """
-        return self._get_prop("is_appealed")
+        return self.get("is_appealed")
 
     @property
     def is_appealable(self):
@@ -224,7 +227,7 @@ class Ban(mixin.ObjectMixin):
         :returns: can this ban be appealed?
         :rtype: bool
         """
-        return self._get_prop("can_be_appealed")
+        return self.get("can_be_appealed")
 
     @property
     def was_shown(self):
@@ -232,7 +235,7 @@ class Ban(mixin.ObjectMixin):
         :returns: was the client notified of this ban?
         :rtype: bool
         """
-        return self._get_prop("was_shown")
+        return self.get("was_shown")
 
     @property
     def is_active(self):
@@ -240,7 +243,7 @@ class Ban(mixin.ObjectMixin):
         :returns: is this ban active?
         :rtype: bool
         """
-        return self._get_prop("is_active")
+        return self.get("is_active")
 
     @property
     def is_shortable(self):
@@ -248,7 +251,7 @@ class Ban(mixin.ObjectMixin):
         :returns: can this ban be shortened?
         :rtype: bool
         """
-        return self._get_prop("is_shortable")
+        return self.get("is_shortable")
 
 
 class Achievement(mixin.ObjectMixin):
@@ -262,14 +265,14 @@ class Achievement(mixin.ObjectMixin):
         key = self.user.id if self.user else "my"
         self._url = f"{self.api}/users/{key}/achievements/{self.id}"
 
-    def _get_prop(self, key, default = None):
+    def get(self, key, default = None):
         if not self._object_data.get(key, None):
             self._update = True
 
         return self._object_data.get(key, default)
 
     def _task_data(self, id):
-        for task in self._get_prop("tasks"):
+        for task in self.get("tasks"):
             if task.get("id") == id:
                 return task
 
@@ -277,7 +280,7 @@ class Achievement(mixin.ObjectMixin):
 
     @property
     def _type(self):
-        return self._get_prop("type_achievement", {})
+        return self.get("type_achievement", {})
 
     @property
     def _season_data(self):
@@ -290,8 +293,7 @@ class Achievement(mixin.ObjectMixin):
         :rtype: list<Task>
         """
         return [
-            Task(item["id"], self, data = item)
-            for item in self._get_prop("tasks")
+            Task(item["id"], self, data = item) for item in self.get("tasks")
         ]
 
     @property
@@ -308,7 +310,7 @@ class Achievement(mixin.ObjectMixin):
         :returns: achievement start timestamp
         :rtype: int
         """
-        return self._get_prop("period_start_at")
+        return self.get("period_start_at")
 
     @property
     def expire_at(self):
@@ -316,7 +318,7 @@ class Achievement(mixin.ObjectMixin):
         :returns: achievement expiration timestamp
         :rtype: int
         """
-        return self._get_prop("period_stop_at")
+        return self.get("period_stop_at")
 
     @property
     def was_shown(self):
@@ -324,7 +326,7 @@ class Achievement(mixin.ObjectMixin):
         :returns: was this achievement shown?
         :rtype: bool
         """
-        return self._get_prop("was_shown")
+        return self.get("was_shown")
 
     @property
     def title(self):
@@ -409,7 +411,7 @@ class Task:
         self.id = id
         self._update = False
 
-    def _get_prop(self, key, default = None):
+    def get(self, key, default = None):
         try:
             return self._object_data[key]
         except KeyError:
@@ -424,7 +426,7 @@ class Task:
 
     @property
     def _type(self):
-        return self._get_prop("type_task", {})
+        return self.get("type_task", {})
 
     @property
     def fresh(self):
@@ -441,7 +443,7 @@ class Task:
         :returns: times to complete task required
         :rtype: int
         """
-        return self._get_prop("count")
+        return self.get("count")
 
     @property
     def event(self):
@@ -466,7 +468,7 @@ class Season:
         self.achievement = achievement
         self._object_data_payload = data
 
-    def _get_prop(self, key, default = None):
+    def get(self, key, default = None):
         try:
             return self._object_data[key]
 
@@ -486,7 +488,7 @@ class Season:
         :returns: the id of this season
         :rtype: str
         """
-        return self._get_prop("id")
+        return self.get("id")
 
     @property
     def title(self):
@@ -494,7 +496,7 @@ class Season:
         :returns: the title of this season
         :rtype: str
         """
-        return self._get_prop("title")
+        return self.get("title")
 
     @property
     def description(self):
@@ -502,7 +504,7 @@ class Season:
         :returns: the description of this season
         :rtype: str
         """
-        return self._get_prop("description")
+        return self.get("description")
 
     @property
     def status(self):
@@ -510,7 +512,7 @@ class Season:
         :returns: the status of this season
         :rtype: str
         """
-        return self._get_prop("status")
+        return self.get("status")
 
     @property
     def start_at(self):
@@ -518,7 +520,7 @@ class Season:
         :returns: the start_at timestamp
         :rtype: int
         """
-        return self._get_prop("start_at")
+        return self.get("start_at")
 
     @property
     def expire_at(self):
@@ -526,4 +528,4 @@ class Season:
         :returns: the expire_at timestamp
         :rtype: int
         """
-        return self._get_prop("stop_at")
+        return self.get("stop_at")

@@ -1,5 +1,6 @@
 import unittest
 import re
+import ifunny
 from ifunny import objects
 
 
@@ -8,12 +9,27 @@ class UserTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.user = objects.User.by_nick("kaffirtest")  # this is my account
+        cls.user = objects.User.by_nick("kaffirtest")
 
     def test_by_nick(self):
         uname = "kaffirtest"
         user = objects.User.by_nick(uname)
         assert uname == user.nick.lower()
+
+    def test_by_nick_none(self):
+        objects.User.by_nick("") == None
+
+    def test_nick(self):
+        assert self.user.nick == "kaffirtest"
+
+    def test_repr(self):
+        assert str(self.user) == "kaffirtest"
+
+    def test_about(self):
+        assert self.user.about == "I run unit tests here"
+
+    def test_original_nick(self):
+        assert isinstance(self.user.original_nick, str)
 
     def test_timeline_paginated(self):
         posts = self.user._timeline_paginated(limit = 1)
@@ -32,26 +48,33 @@ class UserTest(unittest.TestCase):
         sub = next(self.user.subscriptions)
         assert isinstance(sub, objects.User)
 
-    def test_nick(self):
-        assert self.user.nick == "kaffirtest"
-
-    def test_about(self):
-        assert self.user.about == "I run unit tests here"
-
     def test_total_posts(self):
-        assert isinstance(self.user.total_posts, int)
+        assert self.user.total_posts == 7
+
+    def test_total_posts_partial(self):
+        user = next(ifunny.Client().collective).author
+        assert user.total_posts >= 1
 
     def test_total_featured(self):
-        assert isinstance(self.user.total_featured, int)
+        assert self.user.total_featured == 0
+
+    def test_total_featured(self):
+        user = next(ifunny.Client().featured).author
+        assert user.total_featured >= 1
 
     def test_total_smiles(self):
-        assert isinstance(self.user.total_smiles, int)
+        assert self.user.total_smiles >= 0
+
+    def test_total_smiles_partial(self):
+        post = next(ifunny.Client().featured)
+        user = post.author
+        assert user.fresh.total_smiles >= post.fresh.smile_count
 
     def test_subscriber_count(self):
-        assert isinstance(self.user.subscriber_count, int)
+        assert self.user.subscriber_count >= 0
 
     def test_subscription_count(self):
-        assert isinstance(self.user.subscription_count, int)
+        assert self.user.subscription_count >= 0
 
     def test_is_verified(self):
         assert not self.user.is_verified
@@ -80,13 +103,16 @@ class UserTest(unittest.TestCase):
         assert self.user.chat_privacy == "public"
 
     def test_cover_image(self):
-        assert isinstance(self.user.cover_image, objects.Image)
+        assert isinstance(self.user.fresh.cover_image, objects.Image)
 
     def test_profile_image(self):
-        assert isinstance(self.user.profile_image, objects.Image)
+        assert isinstance(self.user.fresh.profile_image, objects.Image)
 
     def test_is_private(self):
         assert self.user.is_private == False
+
+    def test_rating(self):
+        assert isinstance(self.user.rating, objects.Rating)
 
 
 if __name__ == '__main__':

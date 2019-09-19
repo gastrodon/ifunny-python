@@ -135,11 +135,60 @@ class Client(objects._mixin.ClientBase):
 
         return methods.paginated_format(data, items)
 
-    def _get_prop(self, key, default = None):
-        if not self._object_data.get(key, None):
-            self._update = True
+    def _chats_paginated(self,
+                         limit = 100,
+                         next = None,
+                         prev = None,
+                         show_empty = True,
+                         show_read_recipt = True,
+                         show_member = True,
+                         public_mode = "all",
+                         super_mode = "all",
+                         distinct_mode = "all",
+                         member_state_filter = "all",
+                         order = "latest_last_message"):
+        limit = limit if limit else self.paginated_size
 
-        return self._object_data.get(key, default)
+        params = {
+            "limit": limit,
+            "token": next,
+            "show_empty": show_empty,
+            "show_read_recipt": show_read_recipt,
+            "show_member": show_member,
+            "public_mode": public_mode,
+            "super_mode": super_mode,
+            "distinct_mode": distinct_mode,
+            "member_state_filter": member_state_filter,
+            "order": order
+        }
+
+        url = f"{self.sendbird_api}/users/{self.id}/my_group_channels"
+
+        response = requests.get(url,
+                                params = params,
+                                headers = self.sendbird_headers)
+
+        if response.status_code != 200:
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+
+        response = response.json()
+
+        paging = {"next": response["next"]}
+
+        return {
+            "paging":
+            paging,
+            "items": [
+                objects.Chat(data["channel_url"], self, data = data)
+                for data in response["channels"]
+            ]
+        }  # test chat
+
+    def get(self, key, default = None):
+        try:
+            return self._object_data[key]
+        except IndexError:
+            return self.fresh._object_data.get(key, default)
 
     # private properties
 
@@ -155,7 +204,7 @@ class Client(objects._mixin.ClientBase):
 
     # public methods
 
-    def login(self, email, password, force = False):
+    def login(self, email, password = "", force = False):
         """
         Authenticate with iFunny to get an API token.
         Will try to load saved account tokens (saved as plaintext json, indexed by `email_token`) if `force` is False
@@ -196,12 +245,6 @@ class Client(objects._mixin.ClientBase):
         response = requests.post(f"{self.api}/oauth2/token",
                                  headers = headers,
                                  data = data)
-
-        if response.status_code == 403:
-            time.sleep(10)
-            response = requests.post(f"{self.api}/oauth2/token",
-                                     headers = headers,
-                                     data = data)
 
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
@@ -578,8 +621,11 @@ class Client(objects._mixin.ClientBase):
         if callable(_pref):
             _pref = self.__prefix()
 
-        if isinstance(_pref, (set, tuple, list, str)):
-            return set(self.__prefix)
+        if isinstance(_pref, str):
+            _pref = [_pref]
+
+        if isinstance(_pref, (set, tuple, list)):
+            return set(_pref)
 
         raise TypeError(
             f"prefix must be str, iterable, or callable resulting in either. Not {type(_pref)}"
@@ -617,7 +663,7 @@ class Client(objects._mixin.ClientBase):
         :rtype: str
         """
         if not self.__messenger_token:
-            self.__messenger_token = self.fresh._get_prop("messenger_token")
+            self.__messenger_token = self.fresh.get("messenger_token")
 
         return self.__messenger_token  ##
 
@@ -710,7 +756,7 @@ class Client(objects._mixin.ClientBase):
         :returns: this client's username (``nick`` name)
         :rtype: str
         """
-        return self._get_prop("nick")
+        return self.get("nick")
 
     @property
     def email(self):
@@ -718,7 +764,7 @@ class Client(objects._mixin.ClientBase):
         :returns: this client's associated email
         :rtype: str
         """
-        return self._get_prop("email")
+        return self.get("email")
 
     @property
     def id(self):
@@ -727,7 +773,7 @@ class Client(objects._mixin.ClientBase):
         :rtype: str
         """
         if not self.__id:
-            self.__id = self._get_prop("id")
+            self.__id = self.get("id")
 
         return self.__id
 

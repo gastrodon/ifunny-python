@@ -408,7 +408,7 @@ class Chat(mixin.SendbirdMixin):
 
     @property
     def _data(self):
-        _json = json.loads(self._get_prop("data", "{}")).get("chatInfo", {})
+        _json = json.loads(self.get("data", "{}")).get("chatInfo", {})
 
         return _json
 
@@ -452,8 +452,8 @@ class Chat(mixin.SendbirdMixin):
         :returns: the title of this chat
         :rtype: str
         """
-        _title = self._get_prop("title")
-        return _title if _title else self._get_prop("channel").get("name")
+        _title = self.get("title")
+        return _title if _title else self.get("channel").get("name")
 
     @title.setter
     def title(self, value):
@@ -478,7 +478,7 @@ class Chat(mixin.SendbirdMixin):
         :returns: timestamp of this chats creation data
         :rtype: int
         """
-        return self._get_prop("created_at")
+        return self.get("created_at")
 
     @property
     def description(self):
@@ -486,7 +486,7 @@ class Chat(mixin.SendbirdMixin):
         :returns: admin defined description of the chat, if group
         :rtype: str, or None
         """
-        _desc = self._get_prop("description")
+        _desc = self.get("description")
         return _desc if _desc else self._data.get("description")
 
     @description.setter
@@ -528,7 +528,7 @@ class Chat(mixin.SendbirdMixin):
         :returns: the type of this group. Can be ``group``, ``opengroup``, ``chat``
         :rtype: str
         """
-        return self._get_prop("custom_type")
+        return self.get("custom_type")
 
     @property
     def direct(self):
@@ -560,7 +560,7 @@ class Chat(mixin.SendbirdMixin):
         :returs: number of members in this chat
         :rtype: int
         """
-        return self._get_prop("member_count")
+        return self.get("member_count")
 
     # Authentication dependant properties
 
@@ -570,7 +570,7 @@ class Chat(mixin.SendbirdMixin):
         :returns: is this chat muted by the client?
         :rtype: bool
         """
-        return self._get_prop("is_muted")
+        return self.get("is_muted")
 
 
 class ChatUser(objects.User):
@@ -718,7 +718,7 @@ class Message(mixin.SendbirdMixin):
         :rtype: ChatUser
         """
         if not self.__author:
-            self.__author = ChatUser(self._get_prop("user").get("guest_id"),
+            self.__author = ChatUser(self.get("user").get("guest_id"),
                                      self.chat,
                                      client = self.client)
 
@@ -741,7 +741,7 @@ class Message(mixin.SendbirdMixin):
         :returns: String content of the message
         :rtype: str
         """
-        return self._get_prop("message")
+        return self.get("message")
 
     @property
     def channel_url(self):
@@ -750,7 +750,7 @@ class Message(mixin.SendbirdMixin):
         :rtype: str
         """
         if not self.__channel_url:
-            self.__channel_url = self._get_prop("channel_url")
+            self.__channel_url = self.get("channel_url")
 
         return self.__channel_url
 
@@ -776,7 +776,7 @@ class Message(mixin.SendbirdMixin):
         :returns: type of message. Text messages will return type MESG, while files return the file mime
         :rtype: str
         """
-        return self._get_prop("type")
+        return self.get("type")
 
     @property
     def file_url(self):
@@ -787,7 +787,7 @@ class Message(mixin.SendbirdMixin):
         if self.type == "MESG":
             return None
 
-        return self._get_prop("file").get("url")
+        return self.get("file").get("url")
 
     @property
     def file_data(self):
@@ -810,7 +810,7 @@ class Message(mixin.SendbirdMixin):
         if self.type == "MESG":
             return None
 
-        return self._get_prop("file").get("type")
+        return self.get("file").get("type")
 
     @property
     def file_name(self):
@@ -821,7 +821,7 @@ class Message(mixin.SendbirdMixin):
         if self.type == "MESG":
             return None
 
-        return self._get_prop("file").get("name")
+        return self.get("file").get("name")
 
 
 class ChatInvite:

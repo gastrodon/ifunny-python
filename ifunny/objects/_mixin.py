@@ -164,55 +164,6 @@ class ClientBase:
         return methods.paginated_format(data,
                                         items)  # test with another account
 
-    def _chats_paginated(self,
-                         limit = 100,
-                         next = None,
-                         prev = None,
-                         show_empty = True,
-                         show_read_recipt = True,
-                         show_member = True,
-                         public_mode = "all",
-                         super_mode = "all",
-                         distinct_mode = "all",
-                         member_state_filter = "all",
-                         order = "latest_last_message"):
-        limit = limit if limit else self.paginated_size
-
-        params = {
-            "limit": limit,
-            "token": next,
-            "show_empty": show_empty,
-            "show_read_recipt": show_read_recipt,
-            "show_member": show_member,
-            "public_mode": public_mode,
-            "super_mode": super_mode,
-            "distinct_mode": distinct_mode,
-            "member_state_filter": member_state_filter,
-            "order": order
-        }
-
-        url = f"{self.sendbird_api}/users/{self.id}/my_group_channels"
-
-        response = requests.get(url,
-                                params = params,
-                                headers = self.sendbird_headers)
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
-
-        response = response.json()
-
-        paging = {"next": response["next"]}
-
-        return {
-            "paging":
-            paging,
-            "items": [
-                objects.Chat(data["channel_url"], self, data = data)
-                for data in response["channels"]
-            ]
-        }  # test chat
-
     def _reads_paginated(self, limit = None, next = None, prev = None):
         limit = limit if limit else self.paginated_size
         data = methods.paginated_data(f"{self.api}/feeds/reads",
@@ -269,7 +220,7 @@ class ClientBase:
                                       limit = limit,
                                       prev = prev,
                                       next = next,
-                                      ex_params = {"contents": 0})
+                                      ex_params = {"comments": 1})
 
         nested = [item["items"] for item in data["items"]]
         data["items"] = [item for sublist in nested for item in sublist]
@@ -616,11 +567,11 @@ class ObjectMixin:
         self.__home_path = f"{Path.home()}/.ifunnypy"
         self.__cache_path = f"{self.__home_path}/config.json"
 
-    def _get_prop(self, key, default = None):
-        if not self._object_data.get(key, None):
-            self._update = True
-
-        return self._object_data.get(key, default)
+    def get(self, key, default = None):
+        try:
+            return self._object_data[key]
+        except KeyError:
+            return self.fresh._object_data.get(key, default)
 
     def __eq__(self, other):
         return self.id == other
@@ -654,7 +605,7 @@ class ObjectMixin:
         :returns: is this object deleted?
         :rtype: bool
         """
-        return self._get_prop("is_deleted", default = False)
+        return self.get("is_deleted", default = False)
 
     @property
     def headers(self):
