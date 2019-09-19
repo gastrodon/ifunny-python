@@ -75,7 +75,7 @@ class CommentTest(unittest.TestCase):
 
     def test_author(self):
         assert get_first(self.comments,
-                         "comment").author == objects.User.by_nick("kaffirapi")
+                         "comment").author == objects.User.by_nick("kaffir")
 
     def test_smile_count(self):
         assert self.comments[0].smile_count >= 0

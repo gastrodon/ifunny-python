@@ -62,7 +62,7 @@ class PostTest(unittest.TestCase):
         for post in self.posts.values():
             assert isinstance(post.republication_count, int)
 
-        assert self.pinned.republication_count >= 1
+        assert self.pinned.republication_count >= 0
 
     def test_share_count(self):
         for post in self.posts.values():
@@ -75,21 +75,19 @@ class PostTest(unittest.TestCase):
         assert self.pinned.author == self.user
 
     def test_is_original(self):
-        for post in self.posts.values():
-            assert isinstance(post.is_original, bool)
-            assert post.is_original  # collective will not have republications
+        post = next(objects._mixin.ClientBase().collective)
+        assert post.is_original == True
 
     def test_source(self):
-        user = objects.User.by_nick("kaffirapi")
+        user = objects.User.by_nick("kaffirtest")
         post = None
 
         for _post in user.timeline:
             if not _post.is_original:
                 post = _post
+                break
 
-        assert isinstance(post.source, objects.Post)
         assert post.author != post.source.author
-        assert post.source.author == self.user
 
     def test_is_featured(self):
         feature = next(objects._mixin.ClientBase(paginated_size = 1).featured)

@@ -49,7 +49,7 @@ class UserTest(unittest.TestCase):
         assert isinstance(sub, objects.User)
 
     def test_total_posts(self):
-        assert self.user.total_posts == 7
+        assert self.user.total_posts == 8
 
     def test_total_posts_partial(self):
         user = next(ifunny.Client().collective).author
