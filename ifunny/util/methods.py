@@ -16,9 +16,17 @@ mime_types = {
 }
 
 
-def api_req(url, headers = {}, params = {}, codes = {200}):
-    response = requests.get(url, headers = headers, params = params)
-    return None  # TODO: finish me
+def request(method, url, codes = {200}, errors = {}, **kwargs):
+    response = requests.request(method.lower(), url, **kwargs)
+
+    if response.status_code in errors.keys():
+        err = errors[response.status_code]
+        raise err["raisable"](err.get("message", ""))
+
+    if not response.status_code in codes:
+        raise exceptions.BadAPIResponse(f"{url}, {response.text}")
+
+    return response.json()
 
 
 def determine_mime(url, bias = "image/png"):

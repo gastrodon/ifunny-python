@@ -119,17 +119,17 @@ class User(mixin.ObjectMixin):
         :returns: A User with a given nick, if they exist
         :rtype: User, or None
         """
-        response = requests.get(f"{client.api}/users/by_nick/{nick}",
-                                headers = client.headers)
+        errors = {404: {"raisable": exceptions.NotFound}}
 
-        if response.status_code == 404:
+        try:
+            data = methods.request("get",
+                                   f"{client.api}/users/by_nick/{nick}",
+                                   headers = client.headers)["data"]
+
+            return cls(data["id"], client = client, data = data)
+
+        except exceptions.NotFound:
             return None
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
-
-        response = response.json()
-        return cls(response["data"]["id"], client, data = response["data"])
 
     def subscribe(self):
         """
@@ -138,11 +138,9 @@ class User(mixin.ObjectMixin):
         :returns: self
         :rtype: User
         """
-        response = requests.put(f"{self._url}/subscribers",
-                                headers = self.headers)
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        methods.request("put",
+                        f"{self._url}/subscribers",
+                        headers = self.headers)
 
         return self.fresh
 
@@ -153,11 +151,9 @@ class User(mixin.ObjectMixin):
         :returns: self
         :rtype: User
         """
-        response = requests.delete(f"{self._url}/subscribers",
-                                   headers = self.headers)
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        methods.request("delete",
+                        f"{self._url}/subscribers",
+                        headers = self.headers)
 
         return self.fresh
 
@@ -179,16 +175,17 @@ class User(mixin.ObjectMixin):
 
         params = {"type": type}
 
-        response = requests.put(
-            f"{self.client.api}/users/my/blocked/{self.id}",
-            params = params,
-            headers = self.headers)
+        errors = {403: {"raisable": exceptions.Forbidden}}
 
-        if response.status_code != 200:
-            if response.json().get("error") == "already_blocked":
-                return self.fresh
+        try:
+            methods.request("put",
+                            f"{self.client.api}/users/my/blocked/{self.id}",
+                            params = params,
+                            headers = self.headers,
+                            errors = errors)
 
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        except exceptions.Forbidden:
+            pass
 
         return self.fresh
 
@@ -201,16 +198,17 @@ class User(mixin.ObjectMixin):
         """
         params = {"type": "user"}
 
-        response = requests.delete(
-            f"{self.client.api}/users/my/blocked/{self.id}",
-            params = params,
-            headers = self.headers)
+        errors = {403: {"raisable": exceptions.Forbidden}}
 
-        if response.status_code != 200:
-            if response.json().get("error") == "not_blocked":
-                return self.fresh
+        try:
+            methods.request("delete",
+                            f"{self.client.api}/users/my/blocked/{self.id}",
+                            params = params,
+                            headers = self.headers,
+                            errors = errors)
 
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        except exceptions.Forbidden:
+            pass
 
         return self.fresh
 

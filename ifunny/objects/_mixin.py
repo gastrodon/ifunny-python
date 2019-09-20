@@ -580,10 +580,12 @@ class ObjectMixin:
     def _object_data(self):
         if self._update or self._object_data_payload is None:
             self._update = False
-            response = requests.get(self._url, headers = self.headers)
+            response = methods.request("get",
+                                       self._url,
+                                       headers = self.headers)
 
             try:
-                self._object_data_payload = response.json()["data"]
+                self._object_data_payload = response["data"]
             except KeyError:
                 raise exceptions.BadAPIResponse(
                     f"{response.url}, {response.text}")

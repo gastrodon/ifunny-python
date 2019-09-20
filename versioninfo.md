@@ -1,5 +1,10 @@
 # What's new
 
+### 0.11.0
+- `Chat.add_admin` and `Chat.remove_admin` methods are available for any user in a chat. Use with care
+- `Chat.user`
+- Improved test coverage (only up to ~48% :( )
+
 ### 0.10.0
 - `Client.counters` exists with unread values.
 - `Client.unread_featured`, `Client.unread_collective`, `Client.unread_subscriptions`, and`Client.unread_news` exist with counter values

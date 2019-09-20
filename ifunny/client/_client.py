@@ -164,14 +164,10 @@ class Client(objects._mixin.ClientBase):
 
         url = f"{self.sendbird_api}/users/{self.id}/my_group_channels"
 
-        response = requests.get(url,
-                                params = params,
-                                headers = self.sendbird_headers)
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
-
-        response = response.json()
+        response = methods.request("get",
+                                   url,
+                                   params = params,
+                                   headers = self.sendbird_headers)
 
         paging = {"next": response["next"]}
 
@@ -187,7 +183,7 @@ class Client(objects._mixin.ClientBase):
     def get(self, key, default = None):
         try:
             return self._object_data[key]
-        except IndexError:
+        except KeyError:
             return self.fresh._object_data.get(key, default)
 
     # private properties
@@ -196,9 +192,13 @@ class Client(objects._mixin.ClientBase):
     def _object_data(self):
         if self._update or self._object_data_payload is None:
             self._update = False
-            self._object_data_payload = requests.get(
-                f"{self.api}/account", headers = self.headers).json(
-                )["data"] if self.authenticated else {}
+
+            if self.authenticated:
+                self._object_data_payload = methods.request(
+                    "get", f"{self.api}/account",
+                    headers = self.headers)["data"]
+            else:
+                self._object_data_payload = {}
 
         return self._object_data_payload
 
@@ -227,14 +227,16 @@ class Client(objects._mixin.ClientBase):
 
         if not force and self._config.get(f"{email}_token"):
             self.__token = self._config[f"{email}_token"]
-            response = requests.get(f"{self.api}/account",
-                                    headers = self.headers)
 
-            if response.status_code == 200:
+            try:
+                methods.request("get",
+                                f"{self.api}/account",
+                                headers = self.headers)
                 self.authenticated = True
                 return self
 
-        headers = {"Authorization": f"Basic {self.basic_token}"}
+            except exceptions.BadAPIResponse:
+                self.__token = None
 
         data = {
             "grant_type": "password",
@@ -242,101 +244,15 @@ class Client(objects._mixin.ClientBase):
             "password": password
         }
 
-        response = requests.post(f"{self.api}/oauth2/token",
-                                 headers = headers,
-                                 data = data)
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
-
-        self.__token = response.json()["access_token"]
+        self.__token = methods.request("post",
+                                       f"{self.api}/oauth2/token",
+                                       headers = self.headers,
+                                       data = data)["access_token"]
         self.authenticated = True
         self._config[f"{email}_token"] = self.__token
 
         self._update_config()
         return self
-
-    def create_account(self,
-                       nick,
-                       email,
-                       password,
-                       email_notifications = False):
-        """
-        Create an ifunny account.
-        This method will try to bypass ifunny captchas, and try to look like a new device if need be.
-        The creation of this ``ClientBase`` or ``Client`` must have included a ``captcha_api_key``
-
-        :param nick: unique nick for this account
-        :param email: unique email for this account
-        :param password: unique password for this account, whith a min length of ``6`` and > 1 digit
-        :param email_notifications: allow ifunny email notifications?
-
-        :type nick: str
-        :type email: str
-        :type password: str
-        :type email_notifications: bool
-
-        :returns: the user that you just created. There may be a delay before being able to log in
-        :rtype: User
-        """
-
-        if not self.nick_is_available(nick):
-            raise exceptions.Unavailable(f"{nick} nick unavailable")
-
-        if not self.email_is_available(email):
-            raise exceptions.Unavailable(f"{email} email unavailable")
-
-        data = {
-            "reg_type": "pwd",
-            "nick": nick,
-            "email": email,
-            "password": password
-        }
-
-        response = requests.post(f"{self.api}/users",
-                                 data = data,
-                                 headers = self.headers)
-
-        if response.json().get("error") == "forbidden":
-            time.sleep(30)
-            response = requests.post(f"{self.api}/users",
-                                     data = data,
-                                     headers = self.headers)
-
-        if response.json().get("error") == "captcha_required":
-            url = response.json()["data"]["captcha_url"]
-            captcha = self._solve_captcha(url)
-
-            captcha_data = {"g-recaptcha-response": captcha}
-
-            if requests.post(url,
-                             headers = self.headers,
-                             data = captcha_data,
-                             allow_redirects = False).status_code != 302:
-                raise exceptions.CaptchaFailed(
-                    "Generating a captcha failed, try again after a while")
-
-            response = requests.post(f"{self.api}/users",
-                                     data = data,
-                                     headers = self.headers)
-
-        if response.json().get("error") == "unknown_error":
-            time.sleep(30)
-            self.new_basic_token
-            response = requests.post(f"{self.api}/users",
-                                     data = data,
-                                     headers = self.headers)
-
-        if response.status_code != 200:
-            if response.status_code == 429:
-                raise exceptions.RateLimit("Too many signup attempts")
-
-            if response.status_code == 403:
-                raise exceptions.Forbidden("May not sign up")
-
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
-
-        return objects.User(response.json()["data"]["id"], client = self)
 
     def post_image_url(self, image_url, **kwargs):
         """
@@ -407,24 +323,21 @@ class Client(objects._mixin.ClientBase):
 
         files = {"image": image_data}
 
-        response = requests.post(f"{self.api}/content",
-                                 headers = self.headers,
-                                 data = data,
-                                 files = files)
-
-        if response.status_code != 202:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}"
-                                            )  # TODO: test for ratelimits?
-
-        id = response.json()["data"]["id"]
+        id = methods.request("post",
+                             f"{self.api}/content",
+                             headers = self.headers,
+                             data = data,
+                             files = files,
+                             codes = {202})["data"]["id"]
         posted = None
 
         if not wait:
             return
 
         while timeout * 2:
-            posted = requests.get(f"{self.api}/tasks/{id}",
-                                  headers = self.headers).json()["data"]
+            posted = methods.request("get",
+                                     f"{self.api}/tasks/{id}",
+                                     headers = self.headers)["data"]
 
             if posted.get("result"):
                 return objects.Post(posted["result"]["cid"], self)
@@ -462,12 +375,12 @@ class Client(objects._mixin.ClientBase):
         """
         params = {"q": str(query)}
 
-        response = requests.get(f"{self.api}/tags/suggested",
-                                params = params,
-                                headers = self.headers)
+        tags = methods.request("get",
+                               f"{self.api}/tags/suggested",
+                               params = params,
+                               headers = self.headers)["data"]["tags"]["items"]
 
-        return [(item["tag"], item["uses"])
-                for item in response.json()["data"]["tags"]["items"]]
+        return [(tag["tag"], tag["uses"]) for tag in tags]
 
     # sendbird methods
 
@@ -515,15 +428,11 @@ class Client(objects._mixin.ClientBase):
             "channel_url": chat.channel_url
         }
 
-        response = requests.post(f"{self.sendbird_api}/storage/file",
-                                 headers = self.sendbird_headers,
-                                 files = files,
-                                 data = data)
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
-
-        return response.json()["url"]  # test chat
+        return methods.request("post",
+                               f"{self.sendbird_api}/storage/file",
+                               headers = self.sendbird_headers,
+                               files = files,
+                               data = data)["url"]  # test chat
 
     # public decorators
 
@@ -746,9 +655,10 @@ class Client(objects._mixin.ClientBase):
         :returns: number of unread notifications
         :rtype: int
         """
-        return requests.get(f"{self.api}/counters",
-                            headers = self.headers).json()["data"][
-                                "news"]  # test with another account
+        return methods.request("get",
+                               f"{self.api}/counters",
+                               headers = self.headers)["data"][
+                                   "news"]  # test with another account
 
     @property
     def nick(self):
