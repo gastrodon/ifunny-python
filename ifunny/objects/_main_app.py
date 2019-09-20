@@ -124,7 +124,8 @@ class User(mixin.ObjectMixin):
         try:
             data = methods.request("get",
                                    f"{client.api}/users/by_nick/{nick}",
-                                   headers = client.headers)["data"]
+                                   headers = client.headers,
+                                   errors = errors)["data"]
 
             return cls(data["id"], client = client, data = data)
 
