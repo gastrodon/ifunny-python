@@ -43,17 +43,22 @@ class BadAPIResponse(Exception):
         super().__init__(*args, **kwargs)
 
 
-class FailedToComment(Exception):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
 class MemberNotInChat(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
 class Forbidden(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class RepeatedAction(Exception):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class Blocked(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

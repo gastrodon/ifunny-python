@@ -237,12 +237,10 @@ class User(mixin.ObjectMixin):
 
         params = {"type": type}
 
-        response = requests.put(f"{self._url}/abuses",
-                                headers = self.headers,
-                                params = params)
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        methods.request("put",
+                        f"{self._url}/abuses",
+                        headers = self.headers,
+                        params = params)
 
         return self.fresh
 
@@ -253,12 +251,10 @@ class User(mixin.ObjectMixin):
         :returns: self
         :rtype: User
         """
-        response = requests.put(
-            f"{self.client.api}/users/{self.id}/updates_subscribers",
-            headers = self.headers)
 
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        methods.request("put",
+                        f"{self._url}/updates_subscribers",
+                        headers = self.headers)
 
         return self.fresh
 
@@ -269,12 +265,9 @@ class User(mixin.ObjectMixin):
         :returns: self
         :rtype: User
         """
-        response = requests.delete(
-            f"{self.client.api}/users/{self.id}/updates_subscribers",
-            headers = self.headers)
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        methods.request("delete",
+                        f"{self._url}/updates_subscribers",
+                        headers = self.headers)
 
         return self.fresh
 
@@ -298,6 +291,9 @@ class User(mixin.ObjectMixin):
             "messaging_privacy_status": self.chat_privacy,
             "is_private": int(self.is_private)
         }
+
+        if not self.client.nick_is_available(value):
+            raise exceptions.Unavailable(f"Nick {value} is taken")
 
         response = requests.put(f"{self.client.api}/account",
                                 data = data,
@@ -750,6 +746,9 @@ class Post(mixin.ObjectMixin):
         super().__init__(*args, **kwargs)
         self._url = f"{self.client.api}/content/{self.id}"
 
+    def __repr__(self):
+        return self.link
+
     # paginated data
 
     def _smiles_paginated(self, limit = None, prev = None, next = None):
@@ -845,7 +844,7 @@ class Post(mixin.ObjectMixin):
         response = response.json()
 
         if response["data"]["id"] == "000000000000000000000000":
-            raise exceptions.FailedToComment(
+            raise exceptions.RateLimit(
                 f"Failed to add the comment {text}. Are you posting the same comment too fast?"
             )
 
@@ -1106,7 +1105,7 @@ class Post(mixin.ObjectMixin):
         Update a delated posts visibility
         If post is not delated, nothing will happen
 
-        :param visibility: visibility type. Can be of (``public``, ``subscribers``)
+        :param visibility: visibility type. Can be one of (``public``, ``subscribers``)
 
         :type visibility: str
 
@@ -1295,13 +1294,6 @@ class Post(mixin.ObjectMixin):
         """
         return self.get("is_pinned")
 
-    @is_pinned.setter
-    def is_pinned(self, value):
-        if value:
-            self.pin()
-        else:
-            self.unpin()  # test log in
-
     @property
     def is_abused(self):
         """
@@ -1326,16 +1318,6 @@ class Post(mixin.ObjectMixin):
         """
         return self.get("tags")
 
-    @tags.setter
-    def tags(self, value):
-        if isinstance(value, str):
-            value = [value]
-
-        if not isinstance(value, Iterable):
-            raise ValueError("value must be iterable")
-
-        self.set_tags(list(value))  # test log in
-
     @property
     def visibility(self):
         """
@@ -1343,10 +1325,6 @@ class Post(mixin.ObjectMixin):
         :rtype: str (public, subscribers, ect)
         """
         return self.get("visibility")
-
-    @visibility.setter
-    def visibility(self, value):
-        self.set_visibility(value)  # test log in
 
     @property
     def state(self):
@@ -1404,6 +1382,14 @@ class Post(mixin.ObjectMixin):
         """
         return self._meta.get("caption_text")
 
+    @property
+    def link(self):
+        """
+        :returs: this posts link
+        :rtype: str
+        """
+        return self.get("link")
+
     # authentication dependant properties
 
     @property
@@ -1451,8 +1437,29 @@ class Post(mixin.ObjectMixin):
         else:
             self.remove_unsmile()  # test log in
 
+    @visibility.setter
+    def visibility(self, value):
+        self.set_visibility(value)  # test log in
 
-class Comment(mixin.CommentMixin):
+    @tags.setter
+    def tags(self, value):
+        if isinstance(value, str):
+            value = [value]
+
+        if not isinstance(value, Iterable):
+            raise ValueError("value must be iterable")
+
+        self.set_tags(list(value))  # test log in
+
+    @is_pinned.setter
+    def is_pinned(self, value):
+        if value:
+            self.pin()
+        else:
+            self.unpin()  # test log in
+
+
+class Comment(mixin.ObjectMixin):
     """
     iFunny Comment object
 
@@ -1466,8 +1473,9 @@ class Comment(mixin.CommentMixin):
     :type data: dict
     :type paginated_size: int
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, post = None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._post = post
         self.__cid = None
 
         if self._post == None and self._object_data_payload["cid"] == None:
@@ -1477,9 +1485,30 @@ class Comment(mixin.CommentMixin):
 
         self._url = f"{self.client.api}/content/{self.cid}/comments/{self.id}"
 
+    @property
+    def _object_data(self):
+        if self._update or self._object_data_payload is None:
+            self._update = False
+            try:
+                response = methods.request("get",
+                                           self._url,
+                                           headers = self.headers)
+
+                self._object_data_payload = response["data"]["comment"]
+
+            except exceptions.NotFound:
+                if self._object_data_payload:
+                    self._object_data_payload["is_deleted"] = True
+
+                else:
+                    raise exceptions.NotFound(
+                        f"Request on {self._url} returned 404")
+
+        return self._object_data_payload
+
     def __repr__(self):
         # todo image url if any
-        return self.content
+        return self.content if self.content else self.attached_post.link
 
     def _replies_paginated(self, limit = None, prev = None, next = None):
         limit = limit if limit else self.paginated_size
@@ -1495,15 +1524,14 @@ class Comment(mixin.CommentMixin):
             Comment(item["id"],
                     client = self.client,
                     data = item,
-                    post = self.cid,
-                    root = self.id) for item in data["items"]
+                    post = self.cid) for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)
 
     # public methods
 
-    def reply(self, text = None, post = None, user_mentions = None):
+    def reply(self, text = "", post = None, user_mentions = None):
         """
         Reply to a comment.
         At least one of the parameters must be used, as users cannot post empty replys.
@@ -1516,7 +1544,7 @@ class Comment(mixin.CommentMixin):
         :type post: Post or str
         :type user_mentions: list<User>
 
-        :raises: exceptions.FailedToComment
+        :raises: RateLimit, TooManyMentions
 
         :returns: the posted reply
         :rtype: Comment
@@ -1552,23 +1580,19 @@ class Comment(mixin.CommentMixin):
 
             data["content"] = post.id
 
-        response = requests.post(f"{self._url}/{self.id}/replies",
-                                 data = data,
-                                 headers = self.headers)
-
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
-
-        response = response.json()
+        response = methods.request("post",
+                                   f"{self._url}/replies",
+                                   data = data,
+                                   headers = self.headers)
 
         if response["data"]["id"] == "000000000000000000000000":
-            raise exceptions.FailedToComment(
+            raise exceptions.RateLimit(
                 f"Failed to add the comment {text}. Are you posting the same comment too fast?"
             )
 
         return Comment(response["data"]["id"],
                        client = self.client,
-                       data = response["data"]["comment"])  # test log in
+                       data = response["data"]["comment"])
 
     def delete(self):
         """
@@ -1582,7 +1606,7 @@ class Comment(mixin.CommentMixin):
         response = requests.delete(f"{self._absolute_url}/{self.id}",
                                    headers = self.headers)
 
-        return self  # test log in
+        return self
 
     def smile(self):
         """
@@ -1591,13 +1615,9 @@ class Comment(mixin.CommentMixin):
         :returns: self
         :rtype: Comment
         """
-        response = requests.put(f"{self._absolute_url}/{self.id}/smiles",
-                                headers = self.headers)
+        methods.request("put", f"{self._url}/smiles", headers = self.headers)
 
-        if response.status_code != 200 and response.status_code != 403:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
-
-        return self.fresh  # test log in
+        return self.fresh
 
     def remove_smile(self):
         """
@@ -1606,13 +1626,15 @@ class Comment(mixin.CommentMixin):
         :returns: self
         :rtype: Comment
         """
-        response = requests.delete(f"{self._absolute_url}/{self.id}/smiles",
-                                   headers = self.headers)
+        try:
+            methods.request("delete",
+                            f"{self._url}/smiles",
+                            headers = self.headers)
 
-        if response.status_code != 200 and response.status_code != 403:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        except exceptions.RepeatedAction:
+            pass
 
-        return self.fresh  # test log in
+        return self.fresh
 
     def unsmile(self):
         """
@@ -1621,13 +1643,15 @@ class Comment(mixin.CommentMixin):
         :returns: self
         :rtype: Comment
         """
-        response = requests.put(f"{self._absolute_url}/{self.id}/unsmiles",
-                                headers = self.headers)
+        try:
+            methods.request("put",
+                            f"{self._url}/unsmiles",
+                            headers = self.headers)
 
-        if response.status_code != 200 and response.status_code != 403:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        except exceptions.RepeatedAction:
+            pass
 
-        return self.fresh  # test log in
+        return self.fresh
 
     def remove_unsmile(self):
         """
@@ -1636,13 +1660,15 @@ class Comment(mixin.CommentMixin):
         :returns: self
         :rtype: Comment
         """
-        response = requests.delete(f"{self._absolute_url}/{self.id}/unsmiles",
-                                   headers = self.headers)
+        try:
+            methods.request("delete",
+                            f"{self._url}/unsmiles",
+                            headers = self.headers)
 
-        if response.status_code != 200 and response.status_code != 403:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+        except exceptions.RepeatedAction:
+            pass
 
-        return self.fresh  # test log in
+        return self.fresh
 
     def report(self, type):
         """
@@ -1669,14 +1695,12 @@ class Comment(mixin.CommentMixin):
 
         params = {"type": type}
 
-        response = requests.put(f"{self._absolute_url}/{self.id}/abuses",
-                                headers = self.headers,
-                                params = params)
+        methods.request("put",
+                        f"{self._url}/abuses",
+                        headers = self.headers,
+                        params = params)
 
-        if response.status_code != 200:
-            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
-
-        return self.fresh  # test log in
+        return self.fresh
 
     # public generators
 
@@ -1769,7 +1793,7 @@ class Comment(mixin.CommentMixin):
         :returns: the post that this comment is on
         :rtype: Post
         """
-        return Post(self.cid, client = self.client)  ##
+        return Post(self.cid, client = self.client)
 
     @property
     def parent(self):
@@ -1782,9 +1806,7 @@ class Comment(mixin.CommentMixin):
 
         return Comment(self.get("parent_comm_id"),
                        client = self.client,
-                       post = self.cid,
-                       root = self.get("root_comm_id") if self.depth -
-                       1 else None)  ##
+                       post = self.cid)
 
     @property
     def root(self):
@@ -1797,7 +1819,7 @@ class Comment(mixin.CommentMixin):
 
         return Comment(self.get("root_comm_id"),
                        client = self.client,
-                       post = self.cid)  ##
+                       post = self.cid)
 
     @property
     def smile_count(self):
@@ -1838,7 +1860,7 @@ class Comment(mixin.CommentMixin):
         :returns: creation date timestamp
         :rtype: int
         """
-        self.get("date")  # test log in
+        return self.get("date")
 
     @property
     def depth(self):
@@ -1849,7 +1871,7 @@ class Comment(mixin.CommentMixin):
         if self.is_root:
             return 0
 
-        return self.get("depth")  ##
+        return self.get("depth")
 
     @property
     def is_root(self):
@@ -1858,14 +1880,6 @@ class Comment(mixin.CommentMixin):
         :rtype: bool
         """
         return not self.get("is_reply")
-
-    @property
-    def is_deleted(self):
-        """
-        :returns: has this comment been deleted?
-        :rtype: bool
-        """
-        return self.get("is_deleted", default = False)  # test log in
 
     @property
     def is_edited(self):
@@ -1889,7 +1903,7 @@ class Comment(mixin.CommentMixin):
         return Post(data[0]["id"], client = self.client, data = data[0])
 
     @property
-    def mentioned_users(self):
+    def user_mentions(self):
         """
         :returns: a list of mentioned users, if any
         :rtype: list<User>
@@ -1909,7 +1923,7 @@ class Comment(mixin.CommentMixin):
         :returns: did I smile this comment?
         :rtype: bool
         """
-        return self.get("is_smiled")  # test log in
+        return self.get("is_smiled")
 
     @property
     def is_unsmiled(self):
@@ -1917,7 +1931,7 @@ class Comment(mixin.CommentMixin):
         :returns: did I unsmile this comment?
         :rtype: bool
         """
-        return self.get("is_unsmiled")  # test log in
+        return self.get("is_unsmiled")
 
 
 class Notification:
@@ -1980,12 +1994,10 @@ class Notification:
         post = self.__data["content"]["id"]
 
         if self.type == "reply_for_comment":
-            root = self.__data["comment"]["id"]
             return Comment(data["id"],
                            client = self.client,
                            data = data,
-                           post = post,
-                           root = root)
+                           post = post)
 
         return Comment(data["id"],
                        client = self.client,
@@ -2158,9 +2170,6 @@ class Digest(mixin.ObjectMixin):
 
         for data in self.get("subscription_comments"):
             post = Post(data["contentId"], client = self.client)
-            root = Comment(data["rootCommentId"],
-                           client = self.client,
-                           post = post) if data.get("rootCommentId") else None
             yield Comment(data["commentId"], client = self.client,
                           post = post)  # test log in
 

@@ -128,9 +128,7 @@ class Client(objects._mixin.ClientBase):
             objects.Comment(item["id"],
                             client = self,
                             data = item,
-                            post = item["cid"],
-                            root = item.get("root_comm_id"))
-            for item in data["items"]
+                            post = item["cid"]) for item in data["items"]
         ]
 
         return methods.paginated_format(data, items)
@@ -572,13 +570,12 @@ class Client(objects._mixin.ClientBase):
         :rtype: str
         """
         if not self.__messenger_token:
-            self.__messenger_token = self.fresh.get("messenger_token")
-
-        return self.__messenger_token  ##
+            self.__messenger_token = self.get("messenger_token")
+        return self.__messenger_token
 
     @messenger_token.setter
     def messenger_token(self, value):
-        self.__messenger_token = value  ##
+        self.__messenger_token = value
 
     @property
     def unread_notifications(self):

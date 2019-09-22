@@ -161,6 +161,7 @@ class ClientAuthTest(unittest.TestCase):
             client.login(username, password).login(username, password)
 
     def test_post_image(self):
+        time.sleep(10)
         image = requests.get(self.image_png).content
         post = self.client.post_image(image, wait = True)
         timeline = self.client.user.timeline
@@ -172,6 +173,7 @@ class ClientAuthTest(unittest.TestCase):
             post.delete()
 
     def test_post_image_png(self):
+        time.sleep(10)
         image = requests.get(self.image_png).content
         post = self.client.post_image(image, wait = True)
 
@@ -181,6 +183,7 @@ class ClientAuthTest(unittest.TestCase):
             post.delete()
 
     def test_post_image_jpg(self):
+        time.sleep(10)
         image = requests.get(self.image_jpg).content
         post = self.client.post_image(image, wait = True)
 
@@ -190,6 +193,7 @@ class ClientAuthTest(unittest.TestCase):
             post.delete()
 
     def test_post_gif(self):
+        time.sleep(10)
         image = requests.get(self.image_gif).content
         post = self.client.post_image(image, wait = True, type = "gif")
 
@@ -199,6 +203,7 @@ class ClientAuthTest(unittest.TestCase):
             post.delete()
 
     def test_post_image_url(self):
+        time.sleep(10)
         post = self.client.post_image_url(self.image_png, wait = True)
         timeline = self.client.user.timeline
         next(timeline)
@@ -209,6 +214,7 @@ class ClientAuthTest(unittest.TestCase):
             post.delete()
 
     def test_post_image_png_url(self):
+        time.sleep(10)
         post = self.client.post_image_url(self.image_png, wait = True)
 
         try:
@@ -217,6 +223,7 @@ class ClientAuthTest(unittest.TestCase):
             post.delete()
 
     def test_post_image_jpg_url(self):
+        time.sleep(10)
         post = self.client.post_image_url(self.image_jpg, wait = True)
         timeline = self.client.user.timeline
 
@@ -228,6 +235,7 @@ class ClientAuthTest(unittest.TestCase):
             post.delete()
 
     def test_post_image_gif_url(self):
+        time.sleep(10)
         post = self.client.post_image_url(self.image_gif,
                                           wait = True,
                                           type = "gif")
@@ -241,6 +249,7 @@ class ClientAuthTest(unittest.TestCase):
             post.delete()
 
     def test_post_image_bad_visibility(self):
+        time.sleep(10)
         image = requests.get(self.image_png).content
 
         with self.assertRaises(ValueError):
@@ -257,6 +266,7 @@ class ClientAuthTest(unittest.TestCase):
             post.delete()
 
     def test_post_image_tags(self):
+        time.sleep(10)
         post = self.client.post_image_url(self.image_png,
                                           wait = True,
                                           tags = ["foo", "bar"])
@@ -265,6 +275,12 @@ class ClientAuthTest(unittest.TestCase):
             assert post.tags == ["foo", "bar"]
         finally:
             post.delete()
+
+    def test_post_image_schedule(self):
+        time.sleep(10)
+        post = self.client.post_image_url(self.image_png,
+                                          wait = True,
+                                          schedule = int(time.time() + 30))
 
     def test_start_chat(self):
         self.client.start_chat()

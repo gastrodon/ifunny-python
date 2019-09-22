@@ -1,5 +1,9 @@
 # What's new
 
+### 0.11.1
+- fixed a bug that prevented accepting or declining chat invites
+- wrote some more tests and renamed a few things. That's ok though since nobody uses this API
+
 ### 0.11.0
 - `Chat.add_admin` and `Chat.remove_admin` methods are available for any user in a chat. Use with care
 - `Chat.user`
