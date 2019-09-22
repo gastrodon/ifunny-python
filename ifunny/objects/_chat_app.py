@@ -140,13 +140,55 @@ class Chat(mixin.SendbirdMixin):
 
         return self.fresh.operators
 
+    def add_admin(self, user):
         """
+        Add an administrator to this Chat
+
+        :param user: the user that should be an admin
+
+        :type user: User or ChatUser
+
+        :returs: self
+        :rtype: Chat
         """
         data = json.loads(self.get("data"))
+        data["chatInfo"]["adminsIdList"] = [
             *self._data.get("adminsIdList", []), user.id
         ]
 
         data = {"data": json.dumps(data)}
+
+        response = requests.put(self._url,
+                                data = json.dumps(data),
+                                headers = self.client.sendbird_headers)
+
+        return self.fresh
+
+    def remove_admin(self, user):
+        """
+        Remove an administrator from this Chat
+
+        :param user: the user that should no longer be an admin
+
+        :type user: User or ChatUser
+
+        :returs: self
+        :rtype: Chat
+        """
+        data = json.loads(self.get("data"))
+        data["chatInfo"]["adminsIdList"] = [
+            admin for admin in self._data.get("adminsIdList", [])
+            if admin != user.id
+        ]
+
+        data = {"data": json.dumps(data)}
+
+        response = requests.put(self._url,
+                                data = json.dumps(data),
+                                headers = self.client.sendbird_headers)
+
+        return self.fresh
+
     def join(self):
         """
         Join this chat
@@ -437,7 +479,7 @@ class Chat(mixin.SendbirdMixin):
     def admins(self):
         """
         :returns: list of chat admins, if group
-        :rtype: List<ChatUser>, or None
+        :rtype: List<ChatUser>
         """
         data = self._data.get("adminsIdList", [])
 
@@ -447,7 +489,7 @@ class Chat(mixin.SendbirdMixin):
     def operators(self):
         """
         :returns: list of chat operators, if group
-        :rtype: List<ChatUser>, or None
+        :rtype: List<ChatUser>
         """
         data = self._data.get("operatorsIdList")
 
