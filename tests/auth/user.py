@@ -6,7 +6,7 @@ from ifunny.util import exceptions
 
 class UserAuthTest(unittest.TestCase):
     client = None
-    user = None
+    kaffir = None
 
     @property
     def user(self):
@@ -129,15 +129,15 @@ class UserAuthTest(unittest.TestCase):
             self.client.user.set_nick("kaffir")
 
     def test_set_nick_empty(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(exceptions.Unavailable):
             self.client.user.set_nick("")
 
     def test_set_nick_invalid(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(exceptions.Unavailable):
             self.client.user.set_nick("f")
 
     def test_set_nick_bad_type(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(exceptions.Unavailable):
             self.client.user.set_nick(random.randrange)
 
     def test_set_about(self):

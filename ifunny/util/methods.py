@@ -19,14 +19,29 @@ mime_types = {
 def request(method, url, codes = {200}, errors = {}, **kwargs):
     response = requests.request(method.lower(), url, **kwargs)
 
+    if response.status_code in codes:
+        return response.json()
+
     if response.status_code in errors.keys():
         err = errors[response.status_code]
         raise err["raisable"](err.get("message", ""))
 
-    if not response.status_code in codes:
-        raise exceptions.BadAPIResponse(f"{url}, {response.text}")
+    if response.status_code == 404:
+        raise exceptions.NotFound(response.text)
 
-    return response.json()
+    if response.status_code == 403:
+        if response.json()["error"].startswith("already_"):
+            raise exceptions.RepeatedAction(response.text)
+
+        if response.json()["error"] == "you_are_blocked":
+            raise exceptions.Blocked(response.text)
+
+        raise exceptions.Forbidden(response.text)
+
+    if response.status_code == 429:
+        raise exceptions.RateLimit(response.text)
+
+    raise exceptions.BadAPIResponse(f"{url}, {response.text}")
 
 
 def determine_mime(url, bias = "image/png"):

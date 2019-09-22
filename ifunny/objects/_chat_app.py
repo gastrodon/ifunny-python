@@ -140,55 +140,6 @@ class Chat(mixin.SendbirdMixin):
 
         return self.fresh.operators
 
-    def add_admin(self, user):
-        """
-        Add an administrator to this Chat
-
-        :param user: the user that should be an admin
-
-        :type user: User or ChatUser
-
-        :returs: self
-        :rtype: Chat
-        """
-        data = json.loads(self.get("data"))
-        data["chatInfo"]["adminsIdList"] = [
-            *self._data.get("adminsIdList", []), user.id
-        ]
-
-        data = {"data": json.dumps(data)}
-
-        response = requests.put(self._url,
-                                data = json.dumps(data),
-                                headers = self.client.sendbird_headers)
-
-        return self.fresh
-
-    def remove_admin(self, user):
-        """
-        Remove an administrator from this Chat
-
-        :param user: the user that should no longer be an admin
-
-        :type user: User or ChatUser
-
-        :returs: self
-        :rtype: Chat
-        """
-        data = json.loads(self.get("data"))
-        data["chatInfo"]["adminsIdList"] = [
-            admin for admin in self._data.get("adminsIdList", [])
-            if admin != user.id
-        ]
-
-        data = {"data": json.dumps(data)}
-
-        response = requests.put(self._url,
-                                data = json.dumps(data),
-                                headers = self.client.sendbird_headers)
-
-        return self.fresh
-
     def join(self):
         """
         Join this chat
@@ -277,7 +228,7 @@ class Chat(mixin.SendbirdMixin):
         :return: self
         :rtype: Chat
         """
-        data = {"members": user.id}
+        data = {"users": user.id}
 
         errors = {
             403: {
@@ -288,7 +239,7 @@ class Chat(mixin.SendbirdMixin):
 
         methods.request(
             "put",
-            f"{self.client.api}/chats/{self.channel_url}/kicked_members",
+            f"{self.client.api}/chats/{self.channel_url}/kicked_users",
             data = data,
             headers = self.client.headers,
             errors = errors)
@@ -668,7 +619,7 @@ class ChatUser(objects.User):
         :return: self
         :rtype: ChatUser
         """
-        data = {"members": self.id}
+        data = {"users": self.id}
 
         errors = {
             403: {
@@ -908,6 +859,13 @@ class ChatInvite:
         self.__invitees = None
         self.__url = None
 
+    @property
+    def headers(self):
+        return {
+            "User-Agent": "jand/3.096",
+            "Session-Key": self.client.messenger_token
+        }
+
     def accept(self):
         """
         Accept an incoming invitation, if it is from a user.
@@ -923,7 +881,7 @@ class ChatInvite:
 
         methods.request("put",
                         f"{self.url}/accept",
-                        headers = self.client.sendbird_headers,
+                        headers = self.headers,
                         data = data)
 
         return self.chat
@@ -938,9 +896,12 @@ class ChatInvite:
 
         data = json.dumps({"user_id": self.client.id})
 
-        response = requests.put(f"{self.url}/decline",
-                                headers = self.client.sendbird_headers,
-                                data = data)
+        methods.request("put",
+                        f"{self.url}/decline",
+                        headers = self.headers,
+                        data = data)
+
+        return self.chat
 
     @property
     def url(self):

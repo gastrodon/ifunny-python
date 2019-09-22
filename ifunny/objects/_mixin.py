@@ -580,15 +580,20 @@ class ObjectMixin:
     def _object_data(self):
         if self._update or self._object_data_payload is None:
             self._update = False
-            response = methods.request("get",
-                                       self._url,
-                                       headers = self.headers)
-
             try:
+                response = methods.request("get",
+                                           self._url,
+                                           headers = self.headers)
+
                 self._object_data_payload = response["data"]
-            except KeyError:
-                raise exceptions.BadAPIResponse(
-                    f"{response.url}, {response.text}")
+
+            except exceptions.NotFound:
+                if self._object_data_payload:
+                    self._object_data_payload["is_deleted"] = True
+
+                else:
+                    raise exceptions.NotFound(
+                        f"Request on {self._url} returned 404")
 
         return self._object_data_payload
 
@@ -612,54 +617,6 @@ class ObjectMixin:
     @property
     def headers(self):
         return self.client.headers
-
-
-class CommentMixin(ObjectMixin):
-    """
-    Mixin class for iFunny comments objects.
-    Used to implement common methods, subclass to ObjectMixin
-
-    :param id: id of the object
-    :param client: Client that the object belongs to
-    :param data: A data payload for the object to pull from before requests
-    :param paginated_size: number of items to get for each paginated request. If above the call type's maximum, that will be used instead
-    :param post: post that the comment belongs to, if no  data payload supplied
-    :param root: if comment is a reply, the root comment
-
-    :type id: str
-    :type client: Client
-    :type data: dict
-    :type paginated_size: int
-    :type post: str or Post
-    :type root: str
-    """
-    def __init__(self,
-                 id,
-                 client = ClientBase(),
-                 data = None,
-                 paginated_size = 30,
-                 post = None,
-                 root = None):
-        super().__init__(id,
-                         client = client,
-                         data = data,
-                         paginated_size = paginated_size)
-        self._post = post
-        self._root = root
-
-    @property
-    def _object_data(self):
-        if self._update or self._object_data_payload is None:
-            self._update = False
-            response = requests.get(self._url, headers = self.headers)
-
-            try:
-                self._object_data_payload = response.json()["data"]["comment"]
-            except KeyError:
-                raise exceptions.BadAPIResponse(
-                    f"{response.url}, {response.text}")
-
-        return self._object_data_payload
 
 
 class SendbirdMixin(ObjectMixin):

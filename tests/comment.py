@@ -96,10 +96,13 @@ class CommentTest(unittest.TestCase):
     def test_attached_post(self):
         assert self.comments[-3].attached_post == self.comments[-3].post
 
-    def test_mentioned_users(self):
+    def test_user_mentions(self):
         comment = get_first(self.comments, "kaffir")
-        assert comment.mentioned_users[0] == objects.User.by_nick(
+        assert comment.user_mentions[0] == objects.User.by_nick(
             comment.content)
+
+    def test_created_at(self):
+        assert self.comments[0].created_at <= time.time()
 
 
 if __name__ == '__main__':
