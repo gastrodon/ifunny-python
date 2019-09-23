@@ -48,27 +48,27 @@ class UserTest(unittest.TestCase):
         sub = next(self.user.subscriptions)
         assert isinstance(sub, objects.User)
 
-    def test_total_posts(self):
-        assert self.user.total_posts == 8
+    def test_post_count(self):
+        assert self.user.post_count == 8
 
-    def test_total_posts_partial(self):
+    def test_post_count_partial(self):
         user = next(ifunny.Client().collective).author
-        assert user.total_posts >= 1
+        assert user.post_count >= 1
 
-    def test_total_featured(self):
-        assert self.user.total_featured == 0
+    def test_feature_count(self):
+        assert self.user.feature_count == 0
 
-    def test_total_featured(self):
+    def test_feature_count(self):
         user = next(ifunny.Client().featured).author
-        assert user.total_featured >= 1
+        assert user.feature_count >= 1
 
-    def test_total_smiles(self):
-        assert self.user.total_smiles >= 0
+    def test_smiles_count(self):
+        assert self.user.smiles_count >= 0
 
-    def test_total_smiles_partial(self):
+    def test_smiles_count_partial(self):
         post = next(ifunny.Client().featured)
         user = post.author
-        assert user.fresh.total_smiles >= post.fresh.smile_count
+        assert user.fresh.smiles_count >= post.fresh.smile_count
 
     def test_subscriber_count(self):
         assert self.user.subscriber_count >= 0

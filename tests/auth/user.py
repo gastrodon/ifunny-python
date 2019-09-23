@@ -35,9 +35,9 @@ class UserAuthTest(unittest.TestCase):
     def test_can_chat(self):
         assert self.kaffir.can_chat == True
 
-    def test_blocking_me(self):
+    def test_is_blocking_me(self):
         user = objects.User.by_nick("removeddit", client = self.client)
-        assert user.blocking_me == True
+        assert user.is_blocking_me == True
 
     def test_is_blocked(self):
         user = objects.User.by_nick("removeddit", client = self.client)

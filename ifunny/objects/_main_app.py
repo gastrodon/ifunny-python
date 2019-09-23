@@ -395,12 +395,6 @@ class User(mixin.ObjectMixin):
         """
         return methods.paginated_generator(self._subscriptions_paginated)
 
-    # private properties
-
-    @property
-    def _rating_data(self):
-        return self.get("rating")
-
     # public properties
 
     # authentication independant properties
@@ -430,7 +424,7 @@ class User(mixin.ObjectMixin):
         return self.get("about")
 
     @property
-    def total_posts(self):
+    def post_count(self):
         """
         :returns: this users post count
         :rtype: int
@@ -441,7 +435,7 @@ class User(mixin.ObjectMixin):
             return self.fresh.get("num").get("total_posts")
 
     @property
-    def total_featured(self):
+    def feature_count(self):
         """
         :returns: this users feature count
         :rtype: int
@@ -452,7 +446,7 @@ class User(mixin.ObjectMixin):
             return self.fresh.get("num").get("featured")
 
     @property
-    def total_smiles(self):
+    def smiles_count(self):
         """
         :returns: this users smile count
         :rtype: int
@@ -577,7 +571,7 @@ class User(mixin.ObjectMixin):
         """
         return objects.Rating(self,
                               client = self.client,
-                              data = self._rating_data)
+                              data = self.get("rating"))
 
     # authentication dependant properties
 
@@ -664,7 +658,7 @@ class User(mixin.ObjectMixin):
             self.unblock()
 
     @property
-    def blocking_me(self):
+    def is_blocking_me(self):
         """
         :returns: is this user blocking me?
         :rtype: bool
