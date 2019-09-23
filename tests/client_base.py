@@ -73,7 +73,7 @@ class ClientBaseTest(unittest.TestCase):
 
     def test_sendbird_api(self):
         assert mixin.ClientBase(
-        ).sendbird_api == "http://api-us-1.sendbird.com/v3"
+        ).sendbird_api == "https://api-us-1.sendbird.com/v3"
 
     def test_client_id(self):
         assert mixin.ClientBase()._ClientBase__client_id == "MsOIJ39Q28"
