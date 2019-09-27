@@ -899,7 +899,6 @@ class ChatInvite:
 
     def __init__(self, data, client):
         self.client = client
-        self.debug = data
         self.__data = data
 
         self.__chat = None
@@ -995,7 +994,6 @@ class ChatInvite:
             inviter = self.__data["data"]["inviter"]
 
             if not inviter:
-                self.__inviter = None
                 return self.__inviter
 
             self.__inviter = ChatUser(inviter["user_id"],
@@ -1012,6 +1010,7 @@ class ChatInvite:
         """
         if not self.__invitees:
             invitees = self.__data["data"]["invitees"]
+
             self.__invitees = [
                 ChatUser(user["user_id"], self.chat, client = self.client)
                 for user in invitees
