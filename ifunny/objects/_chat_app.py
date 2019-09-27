@@ -912,7 +912,7 @@ class ChatInvite:
     def headers(self):
         return {
             "User-Agent": "jand/3.096",
-            "Session-Key": self.client.messenger_token
+            "Session-Key": self.client.sendbird_session_key
         }
 
     def accept(self):

@@ -68,7 +68,7 @@ class Handler:
 
     def _on_connect(self, key, data):
         if data.get("key"):
-            self.client.messenger_token = data["key"]
+            self.client.sendbird_session_key = data["key"]
         self.client.socket.connected = True
         self.get_ev("on_connect")(
             data)  # TODO: consider using an object for the data

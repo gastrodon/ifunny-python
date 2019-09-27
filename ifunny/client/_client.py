@@ -46,6 +46,7 @@ class Client(objects._mixin.ClientBase):
         self.__id = None
 
         # sendbird api info
+        self.sendbird_session_key = None
         self.__messenger_token = None
         self.__sendbird_req_id = int(time.time() * 1000 + random() * 1000000)
 
@@ -492,8 +493,8 @@ class Client(objects._mixin.ClientBase):
         """
         _headers = {"User-Agent": "jand/3.096"}
 
-        if self.messenger_token:
-            _headers["Session-Key"] = self.messenger_token
+        if self.sendbird_session_key:
+            _headers["Session-Key"] = self.sendbird_session_key
 
         return _headers
 
