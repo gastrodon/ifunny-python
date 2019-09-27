@@ -69,7 +69,7 @@ class ClientBaseTest(unittest.TestCase):
         }
 
     def test_api(self):
-        assert mixin.ClientBase().api == "http://api.ifunny.mobi/v4"
+        assert mixin.ClientBase().api == "https://api.ifunny.mobi/v4"
 
     def test_sendbird_api(self):
         assert mixin.ClientBase(

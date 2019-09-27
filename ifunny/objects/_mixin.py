@@ -20,7 +20,7 @@ class ClientBase:
     :type paginated_size: int
     :type captcha_api_key: str
     """
-    api = "http://api.ifunny.mobi/v4"
+    api = "https://api.ifunny.mobi/v4"
     sendbird_api = "https://api-us-1.sendbird.com/v3"
     captcha_api = "https://2captcha.com"
     _user_agent = "iFunny/5.42(1117792) Android/5.0.2 (samsung; SCH-R530U; samsung)"
@@ -547,7 +547,7 @@ class ObjectMixin:
     :type data: dict
     :type paginated_size: int
     """
-    api = "http://api.ifunny.mobi/v4"
+    api = "https://api.ifunny.mobi/v4"
 
     def __init__(self,
                  id,

@@ -225,9 +225,6 @@ class ClientAuthTest(unittest.TestCase):
     def test_post_image_jpg_url(self):
         time.sleep(10)
         post = self.client.post_image_url(self.image_jpg, wait = True)
-        timeline = self.client.user.timeline
-
-        next(timeline)
 
         try:
             assert post.type == "pic"
@@ -239,9 +236,6 @@ class ClientAuthTest(unittest.TestCase):
         post = self.client.post_image_url(self.image_gif,
                                           wait = True,
                                           type = "gif")
-        timeline = self.client.user.timeline
-
-        next(timeline)
 
         try:
             assert post.type == "gif"
@@ -281,6 +275,13 @@ class ClientAuthTest(unittest.TestCase):
         post = self.client.post_image_url(self.image_png,
                                           wait = True,
                                           schedule = int(time.time() + 30))
+        timeline = self.client.user.timeline
+        next(timeline)
+
+        try:
+            assert next(timeline) == post
+        finally:
+            post.delete()
 
     def test_start_chat(self):
         self.client.start_chat()

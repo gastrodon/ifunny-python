@@ -1904,9 +1904,6 @@ class Comment(mixin.ObjectMixin):
         """
         data = self.get("attachments")["mention_user"]
 
-        if len(data) == 0:
-            return []
-
         return [User(item["user_id"], client = self.client) for item in data]
 
     # authentication dependant properties

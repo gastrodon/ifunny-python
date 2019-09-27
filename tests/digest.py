@@ -30,8 +30,8 @@ class DigestTest(unittest.TestCase):
     def test_smile_count(self):
         assert self.digest.smile_count > 0
 
-    def test_smiles_count_alias(self):
-        assert self.digest.smiles_count == self.digest.smile_count
+    def test_smile_count_alias(self):
+        assert self.digest.smile_count == self.digest.smile_count
 
     def test_comment_count(self):
         assert self.digest.comment_count >= 0

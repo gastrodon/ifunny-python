@@ -129,7 +129,7 @@ class UserAuthTest(unittest.TestCase):
             self.client.user.set_nick("kaffir")
 
     def test_set_nick_empty(self):
-        with self.assertRaises(exceptions.Unavailable):
+        with self.assertRaises(ValueError):
             self.client.user.set_nick("")
 
     def test_set_nick_invalid(self):
