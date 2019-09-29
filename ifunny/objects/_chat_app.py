@@ -104,7 +104,7 @@ class Chat(mixin.SendbirdMixin):
 
         methods.request(
             "put",
-            f"{self.client.api}/chats/{self.channel_url}/operators",
+            f"{self.client.api}/chats/channels/{self.channel_url}/operators",
             data = data,
             headers = self.client.headers,
             errors = errors)
@@ -133,7 +133,7 @@ class Chat(mixin.SendbirdMixin):
 
         methods.request(
             "delete",
-            f"{self.client.api}/chats/{self.channel_url}/operators",
+            f"{self.client.api}/chats/channels/{self.channel_url}/operators",
             data = data,
             headers = self.client.headers,
             errors = errors)
@@ -197,7 +197,7 @@ class Chat(mixin.SendbirdMixin):
         :rtype: bool
         """
         response = requests.put(
-            f"{self.client.api}/chats/{self.channel_url}/members",
+            f"{self.client.api}/chats/channels/{self.channel_url}/members",
             headers = self.client.headers)
 
         return True if response.status_code == 200 else False
@@ -210,7 +210,7 @@ class Chat(mixin.SendbirdMixin):
         :rtype: bool
         """
         response = requests.delete(
-            f"{self.client.api}/chats/{self.channel_url}/members",
+            f"{self.client.api}/chats/channels/{self.channel_url}/members",
             headers = self.client.headers)
 
         return True if response.status_code == 200 else False
@@ -277,7 +277,7 @@ class Chat(mixin.SendbirdMixin):
         :return: self
         :rtype: Chat
         """
-        data = {"users": user.id}
+        data = {"members": user.id}
 
         errors = {
             403: {
@@ -288,7 +288,7 @@ class Chat(mixin.SendbirdMixin):
 
         methods.request(
             "put",
-            f"{self.client.api}/chats/{self.channel_url}/kicked_users",
+            f"{self.client.api}/chats/channels/{self.channel_url}/kicked_members",
             data = data,
             headers = self.client.headers,
             errors = errors)
@@ -491,10 +491,7 @@ class Chat(mixin.SendbirdMixin):
         :returns: list of chat operators, if group
         :rtype: List<ChatUser>
         """
-        data = self._data.get("operatorsIdList")
-
-        if not data:
-            return None
+        data = self._data.get("operatorsIdList", [])
 
         return [ChatUser(id, self, client = self.client) for id in data]
 

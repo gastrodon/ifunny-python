@@ -1,5 +1,10 @@
 # What's new
 
+### 0.11.2
+- fix a bug where `Client.messenger_token` was being written with what should be `Client.sendbird_session_key` (big oops on my part!)
+- In a chat with no operators, `Chat.operators` will return an empty list, instead of `None`
+- change filename `versioninfo.md` -> `CHANGELOG.md`
+
 ### 0.11.1
 - fixed a bug that prevented accepting or declining chat invites
 - wrote some more tests and renamed a few things. That's ok though since nobody uses this API
