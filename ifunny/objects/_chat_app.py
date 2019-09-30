@@ -508,9 +508,10 @@ class Chat(mixin.SendbirdMixin):
     def title(self, value):
         data = {"title": str(value), "description": self.description}
 
-        response = requests.put(f"{self.client.api}/chats/{self.channel_url}",
-                                data = data,
-                                headers = self.client.headers)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.channel_url}",
+            data = data,
+            headers = self.client.headers)
         self._update = True
 
     @property
@@ -541,9 +542,10 @@ class Chat(mixin.SendbirdMixin):
     def description(self, value):
         data = {"title": self.title, "description": str(value)}
 
-        response = requests.put(f"{self.client.api}/chats/{self.channel_url}",
-                                data = data,
-                                headers = self.client.headers)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.channel_url}",
+            data = data,
+            headers = self.client.headers)
         self._update = True
 
     @property
@@ -564,9 +566,10 @@ class Chat(mixin.SendbirdMixin):
 
         data = f"is_frozen={str(val).lower()}"
 
-        response = requests.put(f"{self.client.api}/chats/{self.channel_url}",
-                                headers = self.client.headers,
-                                data = data)
+        response = requests.put(
+            f"{self.client.api}/chats/channels/{self.channel_url}",
+            headers = self.client.headers,
+            data = data)
 
     @property
     def type(self):
@@ -676,7 +679,7 @@ class ChatUser(objects.User):
 
         methods.request(
             "put",
-            f"{self.client.api}/chats/{self.chat.channel_url}/kicked_members",
+            f"{self.client.api}/chats/channels/{self.chat.channel_url}/kicked_members",
             data = data,
             headers = self.client.headers,
             errors = errors)
