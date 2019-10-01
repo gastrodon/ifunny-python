@@ -286,11 +286,7 @@ class User(mixin.ObjectMixin):
         if not len(str(value)):
             raise ValueError("Nickname cannot be empty")
 
-        data = {
-            "nick": str(value),
-            "messaging_privacy_status": self.chat_privacy,
-            "is_private": int(self.is_private)
-        }
+        data = {"nick": str(value)}
 
         if not self.client.nick_is_available(value):
             raise exceptions.Unavailable(f"Nick {value} is taken")
@@ -1079,11 +1075,7 @@ class Post(mixin.ObjectMixin):
         if not self.state == "delayed":
             return None
 
-        data = {
-            "publish_at": int(schedule),
-            "visibility": self.visibility,
-            "tags": json.dumps(self.tags)
-        }
+        data = {"publish_at": int(schedule)}
 
         response = requests.patch(f"{self._url}",
                                   data = data,
