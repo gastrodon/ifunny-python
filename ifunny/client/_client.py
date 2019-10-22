@@ -592,7 +592,7 @@ class Client(objects._mixin.ClientBase):
         for _ in range(self.unread_notifications_count):
             unread.append(next(generator))
 
-        return unread
+        return unread # TODO: why is this a list and not a generator
 
     @property
     def home(self):

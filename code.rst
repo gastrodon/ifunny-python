@@ -14,14 +14,6 @@ ObjectMixin
     :undoc-members:
     :exclude-members: api, sendbird_api, commands
 
-CommentMixin
-------------
-
-.. autoclass:: ifunny.objects._mixin.CommentMixin
-    :members:
-    :undoc-members:
-    :exclude-members: api, sendbird_api, commands
-
 SendbirdMixin
 -------------
 

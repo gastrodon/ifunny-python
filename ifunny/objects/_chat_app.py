@@ -151,6 +151,9 @@ class Chat(mixin.SendbirdMixin):
         :returs: self
         :rtype: Chat
         """
+        return self.fresh
+
+    def _add_admin(self, user):
         data = json.loads(self.get("data"))
         data["chatInfo"]["adminsIdList"] = [
             *self._data.get("adminsIdList", []), user.id
@@ -175,6 +178,9 @@ class Chat(mixin.SendbirdMixin):
         :returs: self
         :rtype: Chat
         """
+        return self.fresh
+
+    def _remove_admin(self, user):
         data = json.loads(self.get("data"))
         data["chatInfo"]["adminsIdList"] = [
             admin for admin in self._data.get("adminsIdList", [])
