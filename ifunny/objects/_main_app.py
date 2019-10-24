@@ -106,7 +106,7 @@ class User(mixin.ObjectMixin):
     # actions
 
     @classmethod
-    def by_nick(cls, nick, client = mixin.ClientBase()):
+    def by_nick(cls, nick, client = mixin.ClientBase(), **kwargs):
         """
         Get a user from their nick.
 
