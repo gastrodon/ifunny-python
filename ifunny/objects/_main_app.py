@@ -127,7 +127,7 @@ class User(mixin.ObjectMixin):
                                    headers = client.headers,
                                    errors = errors)["data"]
 
-            return cls(data["id"], client = client, data = data)
+            return cls(data["id"], client = client, data = data, **kwargs)
 
         except exceptions.NotFound:
             return None

@@ -82,6 +82,30 @@ class Chat(mixin.SendbirdMixin):
 
     # public methods
 
+    @classmethod
+    def by_link(cls, code, client = mixin.ClientBase(), **kwargs):
+        """
+        Get a chat from it's code.
+
+        :param code: code of the chat to query. If this user does not exist, nothing will be returned
+        :param client: the Client to bind the returned user object to
+
+        :type code: str
+        :type client: Client
+
+        :returns: A Chat of the given code, if it exists
+        :rtype: Chat, or None
+        """
+        try:
+            data = methods.request(
+                "get", f"{cls.api}/chats/channels/by_link/{code}",
+                headers = client.headers
+            )["data"]
+
+            return cls(data["channel_url"], client = client, data = data, **kwargs)
+        except exceptions.NotFound:
+            return None
+
     def add_operator(self, user):
         """
         Add an operator toi a Chat
