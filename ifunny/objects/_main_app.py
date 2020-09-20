@@ -1592,7 +1592,10 @@ class Comment(mixin.ObjectMixin):
         response = requests.delete(f"{self._absolute_url}/{self.id}",
                                    headers = self.headers)
 
-        return self
+        if response.status_code != 200:
+            raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
+
+        return self.fresh
 
     def smile(self):
         """
