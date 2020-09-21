@@ -1595,7 +1595,7 @@ class Comment(mixin.ObjectMixin):
         if response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
-        return self.fresh
+        return self
 
     def smile(self):
         """
