@@ -1584,15 +1584,20 @@ class Comment(mixin.ObjectMixin):
         """
         Delete a comment
 
-        :returns: self
+        :raises: RateLimit, BadAPIResponse
 
+        :returns: self
         :rtype: Comment
         """
 
         response = requests.delete(f"{self._absolute_url}/{self.id}",
                                    headers = self.headers)
 
-        if response.status_code != 200:
+        if response.status_code == 429:
+            raise exceptions.RateLimit(
+                f"Failed to delete the comment. Are you deleting comments too fast?"
+            )
+        elif response.status_code != 200:
             raise exceptions.BadAPIResponse(f"{response.url}, {response.text}")
 
         return self
